@@ -1,96 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --background: 231 15% 18%;
+    --foreground: 60 30% 96%;
+    --card: 232 14% 25%;
+    --card-foreground: 60 30% 96%;
+    --popover: 232 14% 25%;
+    --popover-foreground: 60 30% 96%;
+    --primary: 135 95% 65%;
+    --primary-foreground: 231 15% 18%;
+    --secondary: 31 100% 71%;
+    --secondary-foreground: 231 15% 18%;
+    --muted: 232 14% 31%;
+    --muted-foreground: 225 27% 51%;
+    --accent: 265 89% 78%;
+    --accent-foreground: 231 15% 18%;
+    --destructive: 0 100% 67%;
+    --destructive-foreground: 60 30% 96%;
+    --border: 232 14% 31%;
+    --input: 232 14% 31%;
+    --ring: 135 95% 65%;
+    --radius: 1rem;
+    --dracula-bg: 231 15% 18%;
+    --dracula-current: 232 14% 25%;
+    --dracula-selection: 232 14% 31%;
+    --dracula-comment: 225 27% 51%;
+    --dublin-green: 135 95% 65%;
+    --bangalore-gold: 31 100% 71%;
+    --dracula-pink: 326 100% 74%;
+    --dracula-purple: 265 89% 78%;
+    --dracula-cyan: 191 97% 77%;
+    --dracula-red: 0 100% 67%;
+    --sidebar-background: 231 15% 15%;
+    --sidebar-foreground: 60 30% 96%;
+    --sidebar-primary: 135 95% 65%;
+    --sidebar-primary-foreground: 231 15% 18%;
+    --sidebar-accent: 232 14% 25%;
+    --sidebar-accent-foreground: 60 30% 96%;
+    --sidebar-border: 232 14% 31%;
+    --sidebar-ring: 135 95% 65%;
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+  .hug-mode {
+    --background: 340 40% 20%;
+    --card: 340 35% 25%;
+    --primary: 326 100% 74%;
+    --border: 340 30% 35%;
+    --muted: 340 30% 30%;
   }
 }
 
@@ -98,8 +59,43 @@ All colors MUST be HSL.
   * {
     @apply border-border;
   }
-
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-mono;
+    font-family: 'Fira Code', monospace;
   }
 }
+
+@layer utilities {
+  .text-dublin-green { color: hsl(var(--dublin-green)); }
+  .text-bangalore-gold { color: hsl(var(--bangalore-gold)); }
+  .text-dracula-pink { color: hsl(var(--dracula-pink)); }
+  .text-dracula-purple { color: hsl(var(--dracula-purple)); }
+  .text-dracula-cyan { color: hsl(var(--dracula-cyan)); }
+  .text-dracula-red { color: hsl(var(--dracula-red)); }
+  .text-dracula-comment { color: hsl(var(--dracula-comment)); }
+  .bg-dracula-current { background-color: hsl(var(--dracula-current)); }
+  .bg-dracula-selection { background-color: hsl(var(--dracula-selection)); }
+  .border-dublin-green { border-color: hsl(var(--dublin-green)); }
+  .border-bangalore-gold { border-color: hsl(var(--bangalore-gold)); }
+  .glow-green { box-shadow: 0 0 20px hsl(135 95% 65% / 0.3), 0 0 60px hsl(135 95% 65% / 0.1); }
+  .glow-gold { box-shadow: 0 0 20px hsl(31 100% 71% / 0.3), 0 0 60px hsl(31 100% 71% / 0.1); }
+  .glow-pink { box-shadow: 0 0 20px hsl(326 100% 74% / 0.3), 0 0 60px hsl(326 100% 74% / 0.1); }
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: hsl(231 15% 18%); }
+::-webkit-scrollbar-thumb { background: hsl(232 14% 31%); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(225 27% 51%); }
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.cursor-blink { animation: blink 1s step-end infinite; }
+
+@keyframes fly-plane {
+  0% { left: 5%; top: 50%; }
+  50% { left: 50%; top: 30%; }
+  100% { left: 90%; top: 50%; }
+}
+.animate-fly-plane { animation: fly-plane 4s ease-in-out forwards; }
