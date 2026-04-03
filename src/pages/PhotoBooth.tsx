@@ -1,7 +1,7 @@
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-
 import AppLayout from "@/components/AppLayout";
+import { supabase } from "@/integrations/supabase/client";
 
 const overlays = [
   { id: "party", label: "Party hat", emoji: "🥳", x: 0.5, y: 0.18, size: 0.16 },
@@ -16,6 +16,12 @@ const frames = [
   { id: "accent", label: "Party lavender", borderClass: "border-accent", variable: "--accent" },
 ];
 
+interface PhotoRecord {
+  id: string;
+  image_url: string;
+  created_at: string | null;
+}
+
 const PhotoBooth = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -29,13 +35,24 @@ const PhotoBooth = () => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [selectedOverlay, setSelectedOverlay] = useState(overlays[0]);
   const [selectedFrame, setSelectedFrame] = useState(frames[0]);
-  const BOOTH_KEY = "birthday-booth-captures";
-  const [captures, setCaptures] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem(BOOTH_KEY) || "[]"); } catch { return []; }
-  });
+  const [captures, setCaptures] = useState<PhotoRecord[]>([]);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const hasCaptureSource = cameraReady || Boolean(uploadedImage);
+
+  const fetchPhotos = useCallback(async () => {
+    const { data } = await supabase
+      .from("photos")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) setCaptures(data);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchPhotos();
+  }, [fetchPhotos]);
 
   const boothStatus = useMemo(() => {
     if (error) return error;
@@ -48,11 +65,9 @@ const PhotoBooth = () => {
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-
     setCameraReady(false);
   };
 
@@ -61,53 +76,36 @@ const PhotoBooth = () => {
       if (countdownTimerRef.current) {
         window.clearInterval(countdownTimerRef.current);
       }
-
       stopCamera();
     };
   }, []);
-
-  useEffect(() => {
-    try { localStorage.setItem("birthday-booth-captures", JSON.stringify(captures)); } catch {}
-  }, [captures]);
 
   const startCamera = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("Camera API not available in this browser. Try uploading a photo instead.");
       return;
     }
-
     try {
       setIsStartingCamera(true);
       setError(null);
       setUploadedImage(null);
       stopCamera();
-
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
         audio: false,
       });
       streamRef.current = stream;
-
       const video = videoRef.current;
       if (!video) {
         setError("Video element not found. Please reload the page.");
         return;
       }
-
       video.srcObject = stream;
-
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error("timeout")), 5000);
-        video.onloadedmetadata = () => {
-          clearTimeout(timeout);
-          resolve();
-        };
-        if (video.readyState >= 1) {
-          clearTimeout(timeout);
-          resolve();
-        }
+        video.onloadedmetadata = () => { clearTimeout(timeout); resolve(); };
+        if (video.readyState >= 1) { clearTimeout(timeout); resolve(); }
       });
-
       await video.play();
       setCameraReady(true);
     } catch (err) {
@@ -135,16 +133,33 @@ const PhotoBooth = () => {
     context.strokeStyle = getCanvasColor(selectedFrame.variable);
     context.lineWidth = Math.max(18, width * 0.018);
     context.strokeRect(0, 0, width, height);
-
     context.font = `${Math.round(width * selectedOverlay.size)}px serif`;
     context.textAlign = "center";
     context.fillText(selectedOverlay.emoji, width * selectedOverlay.x, height * selectedOverlay.y);
   };
 
+  const uploadToSupabase = async (dataUrl: string) => {
+    // Convert data URL to blob
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const fileName = `booth-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("photobooth")
+      .upload(fileName, blob, { contentType: "image/png" });
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage.from("photobooth").getPublicUrl(fileName);
+    return urlData.publicUrl;
+  };
+
   const capturePhoto = async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-
     if (!canvas || !hasCaptureSource) return;
 
     const context = canvas.getContext("2d");
@@ -168,8 +183,16 @@ const PhotoBooth = () => {
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       drawBoothFrame(context, canvas.width, canvas.height);
 
-      const file = canvas.toDataURL("image/png");
-      setCaptures((current) => [file, ...current]);
+      const dataUrl = canvas.toDataURL("image/png");
+      const publicUrl = await uploadToSupabase(dataUrl);
+      if (publicUrl) {
+        const { data } = await supabase
+          .from("photos")
+          .insert({ image_url: publicUrl })
+          .select()
+          .single();
+        if (data) setCaptures((current) => [data, ...current]);
+      }
       return;
     }
 
@@ -182,42 +205,42 @@ const PhotoBooth = () => {
     const height = video.videoHeight || 720;
     canvas.width = width;
     canvas.height = height;
-
     context.save();
     context.scale(-1, 1);
     context.drawImage(video, -width, 0, width, height);
     context.restore();
-
     drawBoothFrame(context, width, height);
 
-    const file = canvas.toDataURL("image/png");
-    setCaptures((current) => [file, ...current]);
+    const dataUrl = canvas.toDataURL("image/png");
+    const publicUrl = await uploadToSupabase(dataUrl);
+    if (publicUrl) {
+      const { data } = await supabase
+        .from("photos")
+        .insert({ image_url: publicUrl })
+        .select()
+        .single();
+      if (data) setCaptures((current) => [data, ...current]);
+    }
   };
 
   const startCountdown = () => {
     if (!hasCaptureSource) return;
-
     if (countdownTimerRef.current) {
       window.clearInterval(countdownTimerRef.current);
     }
-
     let current = 3;
     setCountdown(current);
-
     countdownTimerRef.current = window.setInterval(() => {
       current -= 1;
-
       if (current === 0) {
         if (countdownTimerRef.current) {
           window.clearInterval(countdownTimerRef.current);
           countdownTimerRef.current = null;
         }
-
         setCountdown(null);
         void capturePhoto();
         return;
       }
-
       setCountdown(current);
     }, 1000);
   };
@@ -225,10 +248,8 @@ const PhotoBooth = () => {
   const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     stopCamera();
     setError(null);
-
     const reader = new FileReader();
     reader.onload = () => {
       setUploadedImage(typeof reader.result === "string" ? reader.result : null);
@@ -236,11 +257,27 @@ const PhotoBooth = () => {
     reader.readAsDataURL(file);
   };
 
-  const downloadCapture = (image: string, index: number) => {
+  const downloadCapture = (imageUrl: string, index: number) => {
     const link = document.createElement("a");
-    link.href = image;
+    link.href = imageUrl;
     link.download = `birthday-booth-${index + 1}.png`;
+    link.target = "_blank";
     link.click();
+  };
+
+  const handleClearPhotos = async () => {
+    if (!window.confirm("Are you sure you want to clear all photobooth photos? This cannot be undone.")) return;
+
+    // Delete all files from storage
+    const { data: files } = await supabase.storage.from("photobooth").list();
+    if (files && files.length > 0) {
+      const filePaths = files.map((f) => f.name);
+      await supabase.storage.from("photobooth").remove(filePaths);
+    }
+
+    // Delete all rows from photos table
+    const { error } = await supabase.from("photos").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (!error) setCaptures([]);
   };
 
   return (
@@ -269,7 +306,6 @@ const PhotoBooth = () => {
             </div>
 
             <div className={`relative aspect-[4/3] overflow-hidden rounded-[1.8rem] border-4 bg-muted/40 ${selectedFrame.borderClass}`}>
-              {/* Video always rendered so ref is stable */}
               <video
                 ref={videoRef}
                 autoPlay
@@ -284,14 +320,12 @@ const PhotoBooth = () => {
                   Start the camera or upload a photo to use the live birthday booth.
                 </div>
               ) : null}
-
               <div
                 className="pointer-events-none absolute"
                 style={{ left: `${selectedOverlay.x * 100}%`, top: `${selectedOverlay.y * 100}%`, transform: "translate(-50%, -50%)" }}
               >
                 <span className="text-5xl md:text-7xl">{selectedOverlay.emoji}</span>
               </div>
-
               {countdown ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/55 text-7xl font-bold text-foreground">
                   {countdown}
@@ -314,7 +348,7 @@ const PhotoBooth = () => {
                 Upload photo
               </button>
               <button
-                onClick={() => captures[0] && downloadCapture(captures[0], 0)}
+                onClick={() => captures[0] && downloadCapture(captures[0].image_url, 0)}
                 disabled={captures.length === 0}
                 className="rounded-xl border border-border bg-muted/50 px-5 py-3 text-sm font-semibold text-foreground disabled:opacity-40"
               >
@@ -330,7 +364,6 @@ const PhotoBooth = () => {
               <h2 className="text-lg font-bold text-foreground">Booth styling</h2>
               <p className="text-xs text-muted-foreground">Pick the overlay and border before the countdown starts.</p>
             </div>
-
             <div className="space-y-3">
               <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Overlay</p>
               <div className="grid grid-cols-2 gap-3">
@@ -346,7 +379,6 @@ const PhotoBooth = () => {
                 ))}
               </div>
             </div>
-
             <div className="space-y-3">
               <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Frame</p>
               <div className="grid gap-3">
@@ -365,22 +397,36 @@ const PhotoBooth = () => {
         </div>
 
         <section className="space-y-4 rounded-[1.8rem] border border-border bg-card p-5">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Captured moments</h2>
-            <p className="text-xs text-muted-foreground">Your booth shots are saved permanently — they'll be here when you come back.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Captured moments</h2>
+              <p className="text-xs text-muted-foreground">Your booth shots are saved permanently — they'll be here when you come back.</p>
+            </div>
+            {captures.length > 0 && (
+              <button
+                onClick={handleClearPhotos}
+                className="text-xs text-destructive hover:text-destructive/80 transition-colors"
+              >
+                🗑️ Clear Photos
+              </button>
+            )}
           </div>
 
-          {captures.length === 0 ? (
+          {loading ? (
+            <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+              Loading photos...
+            </div>
+          ) : captures.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
               No photos yet — take the first one.
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {captures.map((capture, index) => (
-                <div key={capture} className="space-y-3 rounded-2xl border border-border bg-muted/30 p-3">
-                  <img src={capture} alt={`Birthday booth capture ${index + 1}`} className="aspect-[4/3] w-full rounded-xl object-cover" />
+                <div key={capture.id} className="space-y-3 rounded-2xl border border-border bg-muted/30 p-3">
+                  <img src={capture.image_url} alt={`Birthday booth capture ${index + 1}`} className="aspect-[4/3] w-full rounded-xl object-cover" />
                   <button
-                    onClick={() => downloadCapture(capture, index)}
+                    onClick={() => downloadCapture(capture.image_url, index)}
                     className="w-full rounded-xl border border-border bg-background/40 px-4 py-2 text-sm font-semibold text-foreground"
                   >
                     Download shot #{index + 1}
