@@ -1,30 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/AppLayout";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Wish {
   id: string;
   name: string;
   message: string;
   emoji: string;
-  timestamp: number;
+  created_at: string | null;
 }
 
 const emojis = ["💚", "🎂", "🍰", "⚽", "💪", "🎉", "🤗", "✨", "🎸", "🎤"];
 
-const STORAGE_KEY = "birthday-wishes";
-
-const getWishes = (): Wish[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-};
-
 const Wishes = () => {
-  const [wishes, setWishes] = useState<Wish[]>(getWishes);
+  const [wishes, setWishes] = useState<Wish[]>([]);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [selectedEmoji, setSelectedEmoji] = useState("💚");
@@ -32,27 +22,44 @@ const Wishes = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [videoURL, setVideoURL] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchWishes = useCallback(async () => {
+    const { data } = await supabase
+      .from("wishes")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) setWishes(data);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(wishes));
-  }, [wishes]);
+    fetchWishes();
+  }, [fetchWishes]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !message.trim()) return;
 
-    const wish: Wish = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      message: message.trim(),
-      emoji: selectedEmoji,
-      timestamp: Date.now(),
-    };
-    setWishes((prev) => [wish, ...prev]);
-    setName("");
-    setMessage("");
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+    const { data, error } = await supabase
+      .from("wishes")
+      .insert({ name: name.trim(), message: message.trim(), emoji: selectedEmoji })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setWishes((prev) => [data, ...prev]);
+      setName("");
+      setMessage("");
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 3000);
+    }
+  };
+
+  const handleClearWishes = async () => {
+    if (!window.confirm("Are you sure you want to clear all wishes? This cannot be undone.")) return;
+    const { error } = await supabase.from("wishes").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (!error) setWishes([]);
   };
 
   const startRecording = async () => {
@@ -60,14 +67,14 @@ const Wishes = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       const recorder = new MediaRecorder(stream);
       const chunks: BlobPart[] = [];
-      
+
       recorder.ondataavailable = (e) => chunks.push(e.data);
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: "video/webm" });
         setVideoURL(URL.createObjectURL(blob));
         stream.getTracks().forEach((t) => t.stop());
       };
-      
+
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
@@ -81,8 +88,9 @@ const Wishes = () => {
     setIsRecording(false);
   };
 
-  const timeAgo = (ts: number) => {
-    const diff = Date.now() - ts;
+  const timeAgo = (dateStr: string | null) => {
+    if (!dateStr) return "";
+    const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;
@@ -232,16 +240,28 @@ const Wishes = () => {
               <h2 className="text-sm font-bold text-foreground">
                 // wishes.log ({wishes.length} entries)
               </h2>
+              {wishes.length > 0 && (
+                <button
+                  onClick={handleClearWishes}
+                  className="text-xs text-destructive hover:text-destructive/80 transition-colors"
+                >
+                  🗑️ Clear Wishes
+                </button>
+              )}
             </div>
 
-            {wishes.length === 0 && (
+            {loading ? (
+              <div className="bg-card rounded-2xl border border-border p-8 text-center">
+                <p className="text-sm text-muted-foreground">Loading wishes...</p>
+              </div>
+            ) : wishes.length === 0 ? (
               <div className="bg-card rounded-2xl border border-border p-8 text-center">
                 <p className="text-4xl mb-3">📭</p>
                 <p className="text-sm text-muted-foreground">
                   No wishes yet. Be the <span className="text-dublin-green">first</span> to push!
                 </p>
               </div>
-            )}
+            ) : null}
 
             <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
               <AnimatePresence>
@@ -258,7 +278,7 @@ const Wishes = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-bold text-dublin-green truncate">{wish.name}</span>
-                          <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(wish.timestamp)}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(wish.created_at)}</span>
                         </div>
                         <p className="text-sm text-foreground/80 mt-1 leading-relaxed">{wish.message}</p>
                       </div>
