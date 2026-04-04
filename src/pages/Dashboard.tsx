@@ -182,20 +182,25 @@ const Dashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-foreground">mood.toggle()</h3>
-              <p className="text-xs text-muted-foreground mt-1">Feeling stressed? Activate virtual hug mode 🤗</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {hugMode ? "Click the button to turn off hug mode" : "Feeling stressed? Activate virtual hug mode 🤗"}
+              </p>
             </div>
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={toggleHug}
-              className={`px-6 py-3 rounded-xl font-bold text-sm transition-all ${
-                hugMode
-                  ? "text-foreground glow-pink"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-              style={hugMode ? { backgroundColor: "#7A1E2C" } : undefined}
-            >
-              {hugMode ? "🤗 HUG MODE ENABLED" : "🫂 Need a Hug?"}
-            </motion.button>
+            <div className="flex flex-col items-end gap-1">
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.05 }}
+                onClick={toggleHug}
+                className={`px-6 py-3 rounded-xl font-bold text-sm transition-all ${
+                  hugMode
+                    ? "text-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+                style={hugMode ? { backgroundColor: "#5B3A4A", boxShadow: "0 0 20px rgba(91, 58, 74, 0.4)" } : undefined}
+              >
+                {hugMode ? "🤗 HUG MODE ON — Click to Disable" : "🫂 Need a Hug?"}
+              </motion.button>
+            </div>
           </div>
         </motion.div>
 
