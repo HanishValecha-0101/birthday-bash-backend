@@ -264,7 +264,6 @@ const ArrowPuzzle = () => {
                           ➤
                         </span>
                       </motion.button>
-                    )}
                   </AnimatePresence>
                 );
               })}
