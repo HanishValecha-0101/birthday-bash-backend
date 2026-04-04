@@ -266,10 +266,10 @@ const Wishes = () => {
                             {(user?.id === wish.user_id || isAdmin) && (
                               <button
                                 onClick={() => handleDeleteWish(wish.id)}
-                                className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-all text-xs"
-                                title="Delete wish"
+                                className={`text-destructive hover:text-destructive/80 transition-all text-xs ${isAdmin ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                                title={isAdmin ? "Delete wish (Admin)" : "Delete wish"}
                               >
-                                ✕
+                                🗑️
                               </button>
                             )}
                           </div>
