@@ -3,14 +3,14 @@ import { motion } from "framer-motion";
 import GameFrame from "./GameFrame";
 
 const SEGMENTS = [
-  { label: "🎁 Gift this person", color: "hsl(var(--primary))" },
-  { label: "💸 Pay for dinner", color: "hsl(var(--secondary))" },
-  { label: "🎤 Sing a song", color: "hsl(var(--accent))" },
-  { label: "💃 Do a dance", color: "hsl(var(--primary) / 0.7)" },
-  { label: "🍰 Buy cake", color: "hsl(var(--secondary) / 0.7)" },
-  { label: "📸 Take a selfie", color: "hsl(var(--accent) / 0.7)" },
-  { label: "🤗 Give a hug", color: "hsl(var(--primary) / 0.5)" },
-  { label: "🎂 Make a wish", color: "hsl(var(--secondary) / 0.5)" },
+  { label: "🎁 Gift this person", tip: "Time to shop! 🛍️", color: "hsl(var(--primary))" },
+  { label: "💸 Pay for dinner", tip: "Treat the birthday boy! 🍽️", color: "hsl(var(--secondary))" },
+  { label: "🎤 Sing a song", tip: "Pick a banger and perform! 🎶", color: "hsl(var(--accent))" },
+  { label: "💃 Do a dance", tip: "Show off your moves! 🕺", color: "hsl(var(--primary) / 0.7)" },
+  { label: "🍰 Buy cake", tip: "Get the sweetest one! 🎂", color: "hsl(var(--secondary) / 0.7)" },
+  { label: "📸 Selfie & upload", tip: "Take a selfie and upload it to the Photo Booth! 📷", color: "hsl(var(--accent) / 0.7)" },
+  { label: "🤗 Give a hug", tip: "Warm hug incoming! 🫂", color: "hsl(var(--primary) / 0.5)" },
+  { label: "💬 Wish & message", tip: "Wish the birthday boy and add a memorable message on the Wishes page! ✍️", color: "hsl(var(--secondary) / 0.5)" },
 ];
 
 const SEGMENT_ANGLE = 360 / SEGMENTS.length;
@@ -18,14 +18,13 @@ const SEGMENT_ANGLE = 360 / SEGMENTS.length;
 const SpinTheWheel = () => {
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
-  const [result, setResult] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [resultIdx, setResultIdx] = useState<number | null>(null);
 
   const spin = () => {
     if (spinning) return;
 
     setSpinning(true);
-    setResult(null);
+    setResultIdx(null);
 
     const extraSpins = 5 + Math.random() * 5;
     const randomAngle = Math.random() * 360;
@@ -34,11 +33,13 @@ const SpinTheWheel = () => {
     setRotation(totalRotation);
 
     setTimeout(() => {
-      const normalizedAngle = totalRotation % 360;
-      const pointerAngle = (360 - normalizedAngle + 90) % 360;
-      const segmentIndex = Math.floor(pointerAngle / SEGMENT_ANGLE) % SEGMENTS.length;
+      // Pointer is at top (12 o'clock = -90°). After rotation the segment
+      // under the pointer is determined by working out which slice the
+      // "virtual pointer angle" falls into.
+      const effectiveAngle = ((360 - (totalRotation % 360)) % 360);
+      const segmentIndex = Math.floor(effectiveAngle / SEGMENT_ANGLE) % SEGMENTS.length;
 
-      setResult(SEGMENTS[segmentIndex].label);
+      setResultIdx(segmentIndex);
       setSpinning(false);
     }, 4000);
   };
@@ -134,16 +135,15 @@ const SpinTheWheel = () => {
           {spinning ? "Spinning..." : "🎡 Spin!"}
         </motion.button>
 
-        {/* Result */}
-        {result && (
+        {resultIdx !== null && (
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             className="space-y-2 rounded-2xl border border-primary/30 bg-primary/10 px-6 py-4 text-center"
           >
-            <p className="text-2xl">{result.split(" ")[0]}</p>
-            <p className="text-sm font-bold text-foreground">{result}</p>
-            <p className="text-xs text-muted-foreground">The wheel has spoken! No take-backs 😄</p>
+            <p className="text-2xl">{SEGMENTS[resultIdx].label.split(" ")[0]}</p>
+            <p className="text-sm font-bold text-foreground">{SEGMENTS[resultIdx].label}</p>
+            <p className="text-xs text-muted-foreground">{SEGMENTS[resultIdx].tip}</p>
           </motion.div>
         )}
       </div>
