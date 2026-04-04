@@ -1,26 +1,34 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/AppLayout";
-import TiramisuGame from "@/components/games/TiramisuGame";
 import FootballGame from "@/components/games/FootballGame";
 import SingUnlockGame from "@/components/games/SingUnlockGame";
+import PingPongGame from "@/components/games/PingPongGame";
+import ArrowPuzzle from "@/components/games/ArrowPuzzle";
 
-type GameId = "tiramisu" | "football" | "sing" | null;
+type GameId = "pingpong" | "football" | "sing" | "arrow" | null;
 
 const games = [
   {
-    id: "tiramisu" as const,
-    icon: "🍰",
-    title: "Tiramisu Kitchen",
-    description: "Prep ingredients, catch falling layers, and speed-decorate the perfect birthday tiramisu!",
-    tags: ["cooking", "3 rounds", "scoring"],
+    id: "pingpong" as const,
+    icon: "🏓",
+    title: "Ping Pong",
+    description: "Classic retro arcade — two-player local or challenge the AI!",
+    tags: ["arcade", "2-player", "AI mode"],
+  },
+  {
+    id: "arrow" as const,
+    icon: "✈️",
+    title: "Dublin → India",
+    description: "Place arrows on the grid to guide the traveler from Dublin to India!",
+    tags: ["puzzle", "5 levels", "travel"],
   },
   {
     id: "football" as const,
     icon: "⚽",
-    title: "Trick Shot Football",
-    description: "Drag to aim, release to shoot — dodge walls, spinners, and wind to beat the keeper!",
-    tags: ["skill", "obstacles", "birthday mode"],
+    title: "Football Challenge",
+    description: "Pick your zone, outsmart the keeper — 3 shots to score big!",
+    tags: ["skill", "zone-based", "3 shots"],
   },
   {
     id: "sing" as const,
@@ -44,13 +52,13 @@ const PlayZone = () => {
             <span className="text-foreground">()</span>
           </h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Three interactive birthday games — cook tiramisu, score trick shots, or sing your heart out!
+            Four interactive games — ping pong, arrow puzzles, football challenge, or sing your heart out!
           </p>
         </motion.div>
 
         <AnimatePresence mode="wait">
           {!activeGame ? (
-            <motion.div key="cards" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid gap-6 md:grid-cols-3">
+            <motion.div key="cards" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {games.map((game, i) => (
                 <motion.div
                   key={game.id}
@@ -82,7 +90,8 @@ const PlayZone = () => {
               <button onClick={() => setActiveGame(null)} className="mb-4 rounded-xl border border-border bg-muted/40 px-4 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
                 ← Back to Games
               </button>
-              {activeGame === "tiramisu" && <TiramisuGame />}
+              {activeGame === "pingpong" && <PingPongGame />}
+              {activeGame === "arrow" && <ArrowPuzzle />}
               {activeGame === "football" && <FootballGame />}
               {activeGame === "sing" && <SingUnlockGame />}
             </motion.div>

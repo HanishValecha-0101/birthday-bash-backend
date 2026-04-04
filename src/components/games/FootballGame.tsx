@@ -1,233 +1,171 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import GameFrame from "./GameFrame";
 
-const LEVELS = [
-  { name: "Level 1 — Standard Penalty", wallSpeed: 0, wallEnabled: false, spinnerEnabled: false, windEnabled: false, keeperSpeed: 1.5 },
-  { name: "Level 2 — Moving Wall", wallSpeed: 2, wallEnabled: true, spinnerEnabled: false, windEnabled: false, keeperSpeed: 2 },
-  { name: "Level 3 — Spinner + Wind", wallSpeed: 2.5, wallEnabled: true, spinnerEnabled: true, windEnabled: true, keeperSpeed: 2.5 },
+type Zone = "top-left" | "top-right" | "center" | "bottom-left" | "bottom-right";
+type Phase = "rules" | "aiming" | "shooting" | "goal" | "saved" | "result";
+
+const ZONES: { id: Zone; label: string; x: number; y: number; points: number }[] = [
+  { id: "top-left", label: "Top Left", x: 25, y: 12, points: 3 },
+  { id: "top-right", label: "Top Right", x: 75, y: 12, points: 3 },
+  { id: "center", label: "Center", x: 50, y: 18, points: 1 },
+  { id: "bottom-left", label: "Bottom Left", x: 28, y: 28, points: 2 },
+  { id: "bottom-right", label: "Bottom Right", x: 72, y: 28, points: 2 },
 ];
 
 const RULES = [
-  "⚽ Drag from the ball and release to shoot",
-  "🧤 The goalkeeper moves — aim for the corners",
-  "🧱 Level 2+ adds a moving wall obstacle",
-  "🌀 Level 3 adds a spinning blocker & wind drift",
-  "🎂 Score 3 goals to unlock Birthday Ball Mode!",
-  "🎯 Accuracy matters — track your stats",
+  "⚽ You get 3 shots — make them count!",
+  "🎯 Tap a zone in the goal to aim your shot",
+  "🧤 The goalkeeper will dive toward your shot",
+  "⭐ Corner shots score 3 points, bottom 2, center 1",
+  "🏆 Try to outsmart the keeper!",
 ];
 
 const FootballGame = () => {
-  const [phase, setPhase] = useState<"menu" | "rules" | "aiming" | "shooting" | "goal" | "saved" | "result">("menu");
-  const [level, setLevel] = useState(0);
-  const [goals, setGoals] = useState(0);
-  const [attempts, setAttempts] = useState(0);
-  const [ballPos, setBallPos] = useState({ x: 50, y: 85 });
-  const [ballTarget, setBallTarget] = useState({ x: 50, y: 15 });
-  const [keeperX, setKeeperX] = useState(50);
-  const [wallX, setWallX] = useState(50);
-  const [spinnerAngle, setSpinnerAngle] = useState(0);
-  const [windOffset, setWindOffset] = useState(0);
-  const [birthdayMode, setBirthdayMode] = useState(false);
+  const [phase, setPhase] = useState<Phase>("rules");
+  const [score, setScore] = useState(0);
+  const [shotsLeft, setShotsLeft] = useState(3);
+  const [shotsTaken, setShotsTaken] = useState(0);
+  const [ballPos, setBallPos] = useState({ x: 50, y: 82 });
+  const [keeperPos, setKeeperPos] = useState({ x: 50, y: 18 });
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
   const [confetti, setConfetti] = useState<{ id: number; x: number; y: number; emoji: string }[]>([]);
-  const [powerMeter, setPowerMeter] = useState(0);
-  const [isCharging, setIsCharging] = useState(false);
-  const fieldRef = useRef<HTMLDivElement>(null);
-  const animRef = useRef<number>(0);
-  const powerRef = useRef<number>(0);
-  const dragStart = useRef<{ x: number; y: number } | null>(null);
-
-  const lvl = LEVELS[level];
-
-  useEffect(() => {
-    if (phase !== "aiming") return;
-    let t = 0;
-    const loop = () => {
-      t += 0.03;
-      setKeeperX(50 + Math.sin(t * lvl.keeperSpeed) * 22);
-      if (lvl.wallEnabled) setWallX(50 + Math.sin(t * lvl.wallSpeed) * 30);
-      if (lvl.spinnerEnabled) setSpinnerAngle(t * 60);
-      if (lvl.windEnabled) setWindOffset(Math.sin(t * 0.5) * 8);
-
-      if (isCharging) {
-        powerRef.current = Math.min(100, powerRef.current + 2);
-        setPowerMeter(powerRef.current);
-      }
-
-      animRef.current = requestAnimationFrame(loop);
-    };
-    animRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animRef.current);
-  }, [phase, lvl, isCharging]);
+  const shootingRef = useRef(false);
 
   const spawnConfetti = (cx: number, cy: number) => {
-    const emojis = birthdayMode ? ["🎂", "🎉", "🎊", "🎈", "🍰"] : ["⚽", "🎉", "✨"];
-    const newC = Array.from({ length: 12 }, (_, i) => ({
+    const emojis = ["⚽", "🎉", "✨", "🥅", "🔥"];
+    const newC = Array.from({ length: 10 }, (_, i) => ({
       id: Date.now() + i,
-      x: cx + (Math.random() - 0.5) * 60,
-      y: cy + (Math.random() - 0.5) * 40,
+      x: cx + (Math.random() - 0.5) * 40,
+      y: cy + (Math.random() - 0.5) * 30,
       emoji: emojis[Math.floor(Math.random() * emojis.length)],
     }));
     setConfetti((c) => [...c, ...newC]);
     setTimeout(() => setConfetti((c) => c.filter((cc) => !newC.find((n) => n.id === cc.id))), 1200);
   };
 
-  const shoot = useCallback(() => {
-    if (phase !== "aiming" || !fieldRef.current) return;
+  const shoot = useCallback((zone: Zone) => {
+    if (shootingRef.current || shotsLeft <= 0) return;
+    shootingRef.current = true;
+    setSelectedZone(zone);
     setPhase("shooting");
-    setAttempts((a) => a + 1);
 
-    let target = { ...ballTarget };
-    // Apply wind
-    if (lvl.windEnabled) {
-      target.x = Math.max(5, Math.min(95, target.x + windOffset));
+    const target = ZONES.find((z) => z.id === zone)!;
+
+    // Keeper AI: 60% chance to predict the correct side, random within
+    const keeperGuessCorrect = Math.random() < 0.6;
+    const isLeft = target.x < 50;
+    let keeperTargetX: number;
+
+    if (keeperGuessCorrect) {
+      keeperTargetX = isLeft ? 25 + Math.random() * 15 : 60 + Math.random() * 15;
+    } else {
+      keeperTargetX = isLeft ? 60 + Math.random() * 15 : 25 + Math.random() * 15;
     }
+    if (zone === "center") keeperTargetX = 45 + Math.random() * 10;
 
-    const keeperReach = 12;
-    const isBlockedByWall = lvl.wallEnabled && Math.abs(target.x - wallX) < 14 && target.y > 40 && target.y < 60;
-    const isBlockedBySpinner = lvl.spinnerEnabled && Math.abs(target.x - 50) < 18 && target.y > 30 && target.y < 50;
-    const isSaved = Math.abs(target.x - keeperX) < keeperReach;
-
-    setTimeout(() => setBallPos({ x: target.x, y: target.y }), 100);
+    setKeeperPos({ x: keeperTargetX, y: target.y });
+    setBallPos({ x: target.x, y: target.y });
 
     setTimeout(() => {
-      if (isBlockedByWall || isBlockedBySpinner || isSaved) {
+      const saved = Math.abs(target.x - keeperTargetX) < 12;
+      setShotsTaken((p) => p + 1);
+      setShotsLeft((p) => p - 1);
+
+      if (saved) {
         setPhase("saved");
       } else {
-        const newGoals = goals + 1;
-        setGoals(newGoals);
-        if (newGoals >= 3 && !birthdayMode) setBirthdayMode(true);
+        setScore((p) => p + target.points);
         spawnConfetti(target.x, target.y);
         setPhase("goal");
       }
-    }, 600);
-  }, [phase, ballTarget, keeperX, wallX, goals, birthdayMode, lvl, windOffset]);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (phase !== "aiming" || !fieldRef.current) return;
-    const rect = fieldRef.current.getBoundingClientRect();
-    dragStart.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setIsCharging(true);
-    powerRef.current = 0;
-    setPowerMeter(0);
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (phase !== "aiming" || !fieldRef.current || !dragStart.current) return;
-    setIsCharging(false);
-    const rect = fieldRef.current.getBoundingClientRect();
-    const endX = e.clientX - rect.left;
-    const endY = e.clientY - rect.top;
-    const targetX = Math.max(10, Math.min(90, ((2 * dragStart.current.x - endX) / rect.width) * 100));
-    const targetY = Math.max(5, Math.min(35, ((2 * dragStart.current.y - endY) / rect.height) * 100));
-    setBallTarget({ x: targetX, y: targetY });
-    dragStart.current = null;
-    setTimeout(shoot, 50);
-  };
+      shootingRef.current = false;
+    }, 700);
+  }, [shotsLeft]);
 
   const nextShot = () => {
-    setBallPos({ x: 50, y: 85 });
-    setBallTarget({ x: 50, y: 15 });
-    setPowerMeter(0);
+    if (shotsLeft <= 0) {
+      setPhase("result");
+      return;
+    }
+    setBallPos({ x: 50, y: 82 });
+    setKeeperPos({ x: 50, y: 18 });
+    setSelectedZone(null);
     setPhase("aiming");
   };
 
-  const startGame = (lvlIdx: number) => {
-    setLevel(lvlIdx);
-    setGoals(0);
-    setAttempts(0);
-    setBirthdayMode(false);
-    setBallPos({ x: 50, y: 85 });
-    setPowerMeter(0);
-    setPhase("rules");
+  const restart = () => {
+    setScore(0);
+    setShotsLeft(3);
+    setShotsTaken(0);
+    setBallPos({ x: 50, y: 82 });
+    setKeeperPos({ x: 50, y: 18 });
+    setSelectedZone(null);
+    setPhase("aiming");
   };
 
-  const accuracy = attempts > 0 ? Math.round((goals / attempts) * 100) : 0;
-
   return (
-    <GameFrame title={birthdayMode ? "🎂 Birthday Ball Mode!" : "⚽ Trick Shot Football"} subtitle="Drag to aim, release to shoot — beat the keeper!" badge="skill">
-      {phase === "menu" && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-          <p className="text-xs text-muted-foreground">Choose your difficulty — each level adds new obstacles!</p>
-          {LEVELS.map((l, i) => (
-            <button key={i} onClick={() => startGame(i)} className="w-full rounded-xl border border-border bg-muted/40 p-3 text-left text-sm hover:bg-muted/70 transition-colors">
-              <span className="font-bold text-foreground">{l.name}</span>
-              <span className="block text-xs text-muted-foreground mt-1">
-                {l.wallEnabled ? "Moving wall • " : ""}{l.spinnerEnabled ? "Spinner • " : ""}{l.windEnabled ? "Wind • " : ""}Goalkeeper
-              </span>
-            </button>
-          ))}
-        </motion.div>
-      )}
-
+    <GameFrame title="⚽ Football Challenge" subtitle="3 shots — aim for the corners!" badge="skill">
       {phase === "rules" && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <div className="rounded-2xl border border-border bg-muted/40 p-4">
-            <p className="font-semibold text-foreground text-sm mb-3">📋 How to Play</p>
+            <p className="font-semibold text-foreground text-sm mb-3">📋 Football Challenge Rules</p>
             <ul className="space-y-2">
               {RULES.map((rule, i) => (
                 <li key={i} className="text-xs text-muted-foreground">{rule}</li>
               ))}
             </ul>
           </div>
-          <div className="rounded-xl border border-border bg-muted/30 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Playing: <span className="text-foreground font-bold">{LEVELS[level].name}</span></p>
+          <div className="rounded-xl border border-border bg-muted/30 p-3">
+            <p className="text-xs text-muted-foreground text-center">
+              <span className="text-foreground font-bold">Scoring:</span> Top corners = 3pts • Bottom sides = 2pts • Center = 1pt
+            </p>
           </div>
-          <button onClick={() => { setBallPos({ x: 50, y: 85 }); setPhase("aiming"); }} className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground">
+          <button onClick={restart} className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground">
             Start Match ⚽
           </button>
         </motion.div>
       )}
 
-      {phase !== "menu" && phase !== "rules" && (
+      {phase !== "rules" && phase !== "result" && (
         <div className="space-y-3">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Goals: <span className="text-primary font-bold">{goals}</span></span>
-            <span>Attempts: {attempts}</span>
-            <span>Accuracy: {accuracy}%</span>
+            <span>Score: <span className="text-primary font-bold">{score}</span></span>
+            <span>Shots left: <span className="text-foreground font-bold">{shotsLeft}</span></span>
+            <span>Taken: {shotsTaken}/3</span>
           </div>
 
-          {/* Power meter */}
-          {phase === "aiming" && (
-            <div className="h-2 rounded-full bg-muted/60 overflow-hidden border border-border">
-              <motion.div className="h-full rounded-full bg-gradient-to-r from-primary via-secondary to-destructive" style={{ width: `${powerMeter}%` }} />
-            </div>
-          )}
-
-          {/* Wind indicator */}
-          {lvl.windEnabled && phase === "aiming" && (
-            <div className="text-center text-xs text-muted-foreground">
-              💨 Wind: {windOffset > 0 ? "→" : "←"} {Math.abs(Math.round(windOffset))}
-            </div>
-          )}
-
           <div
-            ref={fieldRef}
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            className="relative h-[320px] rounded-2xl border border-border overflow-hidden cursor-crosshair select-none"
+            className="relative h-[300px] rounded-2xl border border-border overflow-hidden select-none"
             style={{ background: "linear-gradient(180deg, hsl(var(--muted)/0.3) 0%, hsl(135 40% 25% / 0.4) 100%)" }}
           >
-            {/* Goal */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[60%] h-12 border-2 border-foreground/40 rounded-t-lg" />
+            {/* Goal frame */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[70%] h-[35%] border-2 border-foreground/40 rounded-t-lg">
+              {/* Goal zones - clickable */}
+              {phase === "aiming" && ZONES.map((zone) => (
+                <div
+                  key={zone.id}
+                  onClick={() => shoot(zone.id)}
+                  className="absolute w-[36%] h-[45%] rounded-lg border border-dashed border-foreground/20 hover:border-primary hover:bg-primary/10 cursor-pointer transition-all flex items-center justify-center"
+                  style={{
+                    left: zone.id.includes("left") ? "2%" : zone.id.includes("right") ? "62%" : "32%",
+                    top: zone.id.includes("top") || zone.id === "center" ? "5%" : "52%",
+                  }}
+                >
+                  <span className="text-[10px] text-foreground/40 font-bold">{zone.points}pt</span>
+                </div>
+              ))}
+            </div>
 
             {/* Keeper */}
-            <motion.div className="absolute top-8 text-3xl" style={{ left: `${keeperX}%`, transform: "translateX(-50%)" }}>🧤</motion.div>
-
-            {/* Wall */}
-            {lvl.wallEnabled && (
-              <motion.div className="absolute text-xl" style={{ left: `${wallX}%`, top: "50%", transform: "translateX(-50%)" }}>🧱🧱</motion.div>
-            )}
-
-            {/* Spinner */}
-            {lvl.spinnerEnabled && (
-              <motion.div
-                className="absolute text-xl"
-                style={{ left: "50%", top: "38%", transform: `translate(-50%, -50%) rotate(${spinnerAngle}deg)` }}
-              >
-                🌀
-              </motion.div>
-            )}
+            <motion.div
+              className="absolute text-3xl"
+              animate={{ left: `${keeperPos.x}%`, top: `${keeperPos.y}%` }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              style={{ transform: "translate(-50%, -50%)" }}
+            >
+              🧤
+            </motion.div>
 
             {/* Ball */}
             <motion.div
@@ -236,7 +174,7 @@ const FootballGame = () => {
               transition={{ type: "spring", stiffness: 200, damping: 20 }}
               style={{ transform: "translate(-50%, -50%)" }}
             >
-              {birthdayMode ? "🎂" : "⚽"}
+              ⚽
             </motion.div>
 
             {/* Confetti */}
@@ -250,7 +188,7 @@ const FootballGame = () => {
 
             {phase === "aiming" && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground/60">
-                hold & drag to aim • release to shoot
+                Click a zone in the goal to shoot
               </div>
             )}
           </div>
@@ -259,15 +197,39 @@ const FootballGame = () => {
             {(phase === "goal" || phase === "saved") && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center space-y-2">
                 <div className="text-3xl">{phase === "goal" ? "🎉" : "😤"}</div>
-                <p className="font-bold text-foreground">{phase === "goal" ? "GOAL!" : "Saved!"}</p>
-                <div className="flex gap-2 justify-center">
-                  <button onClick={nextShot} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Next Shot</button>
-                  <button onClick={() => setPhase("menu")} className="rounded-xl border border-border bg-muted px-4 py-2 text-sm text-foreground">End Game</button>
-                </div>
+                <p className="font-bold text-foreground">
+                  {phase === "goal"
+                    ? `GOAL! +${ZONES.find((z) => z.id === selectedZone)?.points || 0} points`
+                    : "Saved by the keeper!"}
+                </p>
+                <button onClick={nextShot} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
+                  {shotsLeft > 0 ? "Next Shot" : "See Results"}
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
+      )}
+
+      {phase === "result" && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center space-y-4">
+          <div className="text-5xl">{score >= 7 ? "🏆" : score >= 4 ? "⚽" : "😅"}</div>
+          <h3 className="text-xl font-bold text-foreground">
+            {score >= 7 ? "Hat-trick Hero!" : score >= 4 ? "Solid Performance!" : "Better luck next time!"}
+          </h3>
+          <p className="text-2xl font-bold text-primary">{score} / 9 points</p>
+          <p className="text-xs text-muted-foreground">
+            {shotsTaken - Math.floor(score > 0 ? 1 : 0)} saved • {score >= 7 ? "You're unstoppable!" : "Try hitting the corners!"}
+          </p>
+          <div className="flex gap-2 justify-center">
+            <button onClick={restart} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground">
+              Play Again
+            </button>
+            <button onClick={() => setPhase("rules")} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
+              Rules
+            </button>
+          </div>
+        </motion.div>
       )}
     </GameFrame>
   );
