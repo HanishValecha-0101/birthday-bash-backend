@@ -217,10 +217,11 @@ const Dashboard = () => {
               <motion.div
                 initial={{ y: 50 }}
                 animate={{ y: 0 }}
-                className="bg-card rounded-3xl border border-border p-8 md:p-12 text-center glow-pink max-w-md mx-4"
+                className="bg-card rounded-3xl border border-border p-8 md:p-12 text-center max-w-md mx-4"
+                style={{ boxShadow: "0 0 40px rgba(140, 100, 160, 0.3)" }}
               >
                 <div className="text-6xl mb-4">🤗</div>
-                <h2 className="text-2xl font-bold text-dracula-pink mb-2">Virtual Hug Sent!</h2>
+                <h2 className="text-2xl font-bold text-accent mb-2">Virtual Hug Sent!</h2>
                 <p className="text-muted-foreground text-sm">
                   console.log("You're doing amazing! 💚")
                 </p>
