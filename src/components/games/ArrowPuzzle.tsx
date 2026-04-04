@@ -1,302 +1,261 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import GameFrame from "./GameFrame";
 
 /*
- * Arrow Puzzle — A logic puzzle game where you place arrows on a grid
- * to create a path from Start to Goal. Obstacles block your way.
- * 5 levels of increasing difficulty.
+ * Arrow Puzzle — Tap-Away Style
+ * Grid filled with arrows pointing in different directions.
+ * Tap an arrow whose path ahead is clear (no arrows blocking) to remove it.
+ * Clear the entire grid to win. Tapping a blocked arrow costs a life.
  */
 
-type Direction = "up" | "down" | "left" | "right" | null;
-type CellType = "empty" | "wall" | "start" | "end";
+type Direction = "up" | "down" | "left" | "right";
 
-interface Cell {
-  type: CellType;
-  arrow: Direction;
+interface ArrowCell {
+  id: number;
+  direction: Direction;
+  row: number;
+  col: number;
+  removed: boolean;
 }
 
 interface Level {
   name: string;
-  hint: string;
-  size: number;
-  grid: CellType[][];
-  start: [number, number];
-  end: [number, number];
+  gridSize: number;
+  lives: number;
+  seed: number;
 }
 
 const LEVELS: Level[] = [
-  {
-    name: "Level 1 — Warm Up",
-    hint: "Just go right and down!",
-    size: 4,
-    grid: [
-      ["start", "empty", "empty", "empty"],
-      ["empty", "empty", "wall", "empty"],
-      ["empty", "empty", "empty", "empty"],
-      ["empty", "wall", "empty", "end"],
-    ],
-    start: [0, 0],
-    end: [3, 3],
-  },
-  {
-    name: "Level 2 — Zigzag",
-    hint: "You'll need to change direction twice.",
-    size: 5,
-    grid: [
-      ["start", "empty", "wall", "empty", "empty"],
-      ["wall", "empty", "wall", "empty", "wall"],
-      ["empty", "empty", "empty", "empty", "empty"],
-      ["empty", "wall", "wall", "empty", "wall"],
-      ["empty", "empty", "empty", "empty", "end"],
-    ],
-    start: [0, 0],
-    end: [4, 4],
-  },
-  {
-    name: "Level 3 — Labyrinth",
-    hint: "There's only one valid route — find it.",
-    size: 5,
-    grid: [
-      ["start", "empty", "wall", "empty", "empty"],
-      ["empty", "wall", "empty", "empty", "wall"],
-      ["empty", "empty", "empty", "wall", "empty"],
-      ["wall", "wall", "empty", "empty", "empty"],
-      ["empty", "empty", "wall", "empty", "end"],
-    ],
-    start: [0, 0],
-    end: [4, 4],
-  },
-  {
-    name: "Level 4 — Spiral",
-    hint: "Think outside-in.",
-    size: 6,
-    grid: [
-      ["start", "empty", "empty", "empty", "empty", "empty"],
-      ["wall", "wall", "wall", "wall", "empty", "empty"],
-      ["empty", "empty", "empty", "wall", "empty", "wall"],
-      ["empty", "wall", "empty", "empty", "empty", "wall"],
-      ["empty", "wall", "wall", "wall", "empty", "empty"],
-      ["empty", "empty", "empty", "empty", "wall", "end"],
-    ],
-    start: [0, 0],
-    end: [5, 5],
-  },
-  {
-    name: "Level 5 — Mastermind",
-    hint: "Every arrow counts. No room for error.",
-    size: 7,
-    grid: [
-      ["empty", "empty", "wall", "empty", "empty", "empty", "empty"],
-      ["start", "empty", "wall", "empty", "wall", "empty", "wall"],
-      ["wall", "empty", "empty", "empty", "wall", "empty", "empty"],
-      ["empty", "empty", "wall", "empty", "empty", "empty", "wall"],
-      ["empty", "wall", "empty", "empty", "wall", "empty", "empty"],
-      ["empty", "empty", "empty", "wall", "empty", "empty", "wall"],
-      ["wall", "empty", "wall", "empty", "empty", "empty", "end"],
-    ],
-    start: [1, 0],
-    end: [6, 6],
-  },
+  { name: "Level 1 — Gentle Start", gridSize: 3, lives: 5, seed: 42 },
+  { name: "Level 2 — Warming Up", gridSize: 4, lives: 5, seed: 77 },
+  { name: "Level 3 — Getting Tricky", gridSize: 4, lives: 4, seed: 123 },
+  { name: "Level 4 — Sharp Mind", gridSize: 5, lives: 4, seed: 256 },
+  { name: "Level 5 — Arrow Master", gridSize: 5, lives: 3, seed: 999 },
+  { name: "Level 6 — Flow State", gridSize: 6, lives: 4, seed: 314 },
+  { name: "Level 7 — Deep Focus", gridSize: 6, lives: 3, seed: 512 },
+  { name: "Level 8 — Zen Master", gridSize: 7, lives: 3, seed: 777 },
 ];
 
-const ARROW_ICONS: Record<string, string> = { up: "↑", down: "↓", left: "←", right: "→" };
-const DIRECTIONS: Direction[] = ["up", "right", "down", "left"];
+const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
+const ARROW_ICONS: Record<Direction, string> = { up: "↑", down: "↓", left: "←", right: "→" };
+const ARROW_ROTATIONS: Record<Direction, string> = { up: "rotate(-90deg)", right: "rotate(0deg)", down: "rotate(90deg)", left: "rotate(180deg)" };
+
+function seededRandom(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function generateGrid(size: number, seed: number): ArrowCell[] {
+  const rng = seededRandom(seed);
+  const cells: ArrowCell[] = [];
+  let id = 0;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      cells.push({
+        id: id++,
+        direction: DIRECTIONS[Math.floor(rng() * 4)],
+        row: r,
+        col: c,
+        removed: false,
+      });
+    }
+  }
+  return cells;
+}
+
+function isPathClear(cell: ArrowCell, allCells: ArrowCell[], gridSize: number): boolean {
+  const { direction, row, col } = cell;
+  const activeCells = allCells.filter((c) => !c.removed && c.id !== cell.id);
+
+  switch (direction) {
+    case "up":
+      return !activeCells.some((c) => c.col === col && c.row < row);
+    case "down":
+      return !activeCells.some((c) => c.col === col && c.row > row);
+    case "left":
+      return !activeCells.some((c) => c.row === row && c.col < col);
+    case "right":
+      return !activeCells.some((c) => c.row === row && c.col > col);
+    default:
+      return false;
+  }
+}
 
 const ArrowPuzzle = () => {
   const [levelIdx, setLevelIdx] = useState<number | null>(null);
-  const [grid, setGrid] = useState<Cell[][]>([]);
-  const [solved, setSolved] = useState(false);
-  const [path, setPath] = useState<[number, number][]>([]);
-  const [simulating, setSimulating] = useState(false);
-  const [moves, setMoves] = useState(0);
+  const [cells, setCells] = useState<ArrowCell[]>([]);
+  const [lives, setLives] = useState(0);
+  const [maxLives, setMaxLives] = useState(0);
+  const [shakeId, setShakeId] = useState<number | null>(null);
   const [showHint, setShowHint] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+
+  const remaining = cells.filter((c) => !c.removed).length;
+  const solved = remaining === 0 && levelIdx !== null && !gameOver;
+
+  const gridSize = levelIdx !== null ? LEVELS[levelIdx].gridSize : 0;
+
+  const hintCellId = useMemo(() => {
+    if (!showHint) return null;
+    const active = cells.filter((c) => !c.removed);
+    const clearCell = active.find((c) => isPathClear(c, cells, gridSize));
+    return clearCell?.id ?? null;
+  }, [showHint, cells, gridSize]);
 
   const initLevel = useCallback((idx: number) => {
     const lvl = LEVELS[idx];
-    const g: Cell[][] = lvl.grid.map((row) => row.map((type) => ({ type, arrow: null })));
-    setGrid(g);
+    setCells(generateGrid(lvl.gridSize, lvl.seed));
+    setLives(lvl.lives);
+    setMaxLives(lvl.lives);
     setLevelIdx(idx);
-    setSolved(false);
-    setPath([]);
-    setSimulating(false);
-    setMoves(0);
+    setShakeId(null);
     setShowHint(false);
+    setGameOver(false);
   }, []);
 
-  const cycleArrow = (r: number, c: number) => {
-    if (simulating || solved) return;
-    const cell = grid[r][c];
-    if (cell.type !== "empty") return;
-    const currentIdx = cell.arrow ? DIRECTIONS.indexOf(cell.arrow) : -1;
-    const nextIdx = currentIdx + 1;
-    const nextArrow = nextIdx >= DIRECTIONS.length ? null : DIRECTIONS[nextIdx];
-    setGrid((prev) => {
-      const copy = prev.map((row) => row.map((c) => ({ ...c })));
-      copy[r][c].arrow = nextArrow;
-      return copy;
-    });
-    setMoves((m) => m + 1);
+  const handleTap = (cell: ArrowCell) => {
+    if (cell.removed || solved || gameOver) return;
+
+    if (isPathClear(cell, cells, gridSize)) {
+      setCells((prev) => prev.map((c) => (c.id === cell.id ? { ...c, removed: true } : c)));
+      setShowHint(false);
+    } else {
+      setShakeId(cell.id);
+      setTimeout(() => setShakeId(null), 500);
+      const newLives = lives - 1;
+      setLives(newLives);
+      if (newLives <= 0) setGameOver(true);
+    }
   };
 
-  const simulate = useCallback(() => {
-    if (levelIdx === null) return;
-    const lvl = LEVELS[levelIdx];
-    setSimulating(true);
-    const visited = new Set<string>();
-    const trail: [number, number][] = [];
-    let [r, c] = lvl.start;
-    trail.push([r, c]);
+  const cellSize = gridSize <= 4 ? 64 : gridSize <= 5 ? 54 : gridSize <= 6 ? 46 : 40;
 
-    const maxSteps = lvl.size * lvl.size * 2;
-    let success = false;
-
-    for (let step = 0; step < maxSteps; step++) {
-      const key = `${r},${c}`;
-      if (visited.has(key)) break;
-      visited.add(key);
-      if (r === lvl.end[0] && c === lvl.end[1]) { success = true; break; }
-
-      const cell = grid[r][c];
-      let dir = cell.arrow;
-      if (cell.type === "start" && !dir) dir = "right";
-      if (!dir) break;
-
-      const moves: Record<string, [number, number]> = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
-      const [dr, dc] = moves[dir];
-      const nr = r + dr;
-      const nc = c + dc;
-
-      if (nr < 0 || nr >= lvl.size || nc < 0 || nc >= lvl.size) break;
-      if (grid[nr][nc].type === "wall") break;
-
-      r = nr; c = nc;
-      trail.push([r, c]);
-    }
-
-    setPath(trail);
-    if (success) setSolved(true);
-    setTimeout(() => setSimulating(false), 500);
-  }, [grid, levelIdx]);
-
-  const reset = () => { if (levelIdx !== null) initLevel(levelIdx); };
-
-  const cellSize = levelIdx !== null && LEVELS[levelIdx].size > 5 ? 44 : 52;
+  const dirColor: Record<Direction, string> = {
+    up: "text-primary",
+    down: "text-secondary",
+    left: "text-dracula-pink",
+    right: "text-dracula-cyan",
+  };
 
   return (
-    <GameFrame title="🧩 Arrow Puzzle" subtitle="Place arrows to guide the path from Start to Goal!" badge="logic">
+    <GameFrame title="🧩 Arrow Puzzle" subtitle="Tap arrows to clear the grid. Find free paths!" badge="logic">
       {levelIdx === null ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
           <div className="rounded-2xl border border-border bg-muted/40 p-4 space-y-2">
             <p className="font-semibold text-foreground text-sm">📋 How to Play</p>
             <ul className="space-y-1 text-xs text-muted-foreground">
-              <li>🟢 Guide the path from <strong>Start</strong> to <strong>Goal</strong></li>
-              <li>🖱️ Click empty cells to place direction arrows (↑→↓←)</li>
-              <li>🧱 Dark cells are walls — you can't pass through</li>
-              <li>▶️ Press <strong>"Simulate"</strong> to test your path</li>
-              <li>🔄 Click an arrow again to cycle or remove it</li>
+              <li>🎯 <strong>Goal:</strong> Clear all arrows from the grid</li>
+              <li>👆 <strong>Tap</strong> an arrow whose path ahead is clear (no arrows blocking it)</li>
+              <li>❌ Tapping a <strong>blocked</strong> arrow costs a life</li>
+              <li>💡 Use <strong>Hint</strong> to highlight a safe arrow</li>
+              <li>🧠 Plan the order — think before you tap!</li>
             </ul>
           </div>
-          {LEVELS.map((lvl, i) => (
-            <button key={i} onClick={() => initLevel(i)} className="w-full rounded-xl border border-border bg-muted/40 p-3 text-left text-sm hover:bg-muted/70 transition-colors">
-              <span className="font-bold text-foreground">{lvl.name}</span>
-              <span className="block text-xs text-muted-foreground mt-1">{lvl.size}×{lvl.size} grid • {lvl.hint}</span>
-            </button>
-          ))}
+          <div className="grid grid-cols-2 gap-2">
+            {LEVELS.map((lvl, i) => (
+              <button key={i} onClick={() => initLevel(i)} className="rounded-xl border border-border bg-muted/40 p-3 text-left text-sm hover:bg-muted/70 transition-colors">
+                <span className="font-bold text-foreground">{lvl.name}</span>
+                <span className="block text-xs text-muted-foreground mt-1">{lvl.gridSize}×{lvl.gridSize} • {lvl.lives} lives</span>
+              </button>
+            ))}
+          </div>
         </motion.div>
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{LEVELS[levelIdx].name}</span>
-            <span>Moves: {moves}</span>
+            <span className="font-semibold text-foreground">{LEVELS[levelIdx].name}</span>
+            <div className="flex items-center gap-3">
+              <span>Remaining: <strong className="text-foreground">{remaining}</strong></span>
+              <span>Lives: <strong className={lives <= 1 ? "text-destructive" : "text-foreground"}>{"❤️".repeat(lives)}{"🖤".repeat(maxLives - lives)}</strong></span>
+            </div>
           </div>
 
           <div className="flex justify-center">
             <div
-              className="grid gap-1"
-              style={{ gridTemplateColumns: `repeat(${LEVELS[levelIdx].size}, 1fr)`, width: `${LEVELS[levelIdx].size * (cellSize + 4)}px` }}
+              className="grid gap-1.5"
+              style={{
+                gridTemplateColumns: `repeat(${gridSize}, ${cellSize}px)`,
+              }}
             >
-              {grid.map((row, r) =>
-                row.map((cell, c) => {
-                  const isOnPath = path.some(([pr, pc]) => pr === r && pc === c);
-                  const isStart = cell.type === "start";
-                  const isEnd = cell.type === "end";
-                  const isWall = cell.type === "wall";
-                  return (
-                    <motion.div
-                      key={`${r}-${c}`}
-                      onClick={() => cycleArrow(r, c)}
-                      whileTap={cell.type === "empty" ? { scale: 0.9 } : undefined}
-                      className={`rounded-lg border flex items-center justify-center text-lg cursor-pointer select-none transition-all duration-200 ${
-                        isStart
-                          ? "border-primary bg-primary/20"
-                          : isEnd
-                          ? "border-secondary bg-secondary/20"
-                          : isWall
-                          ? "border-border bg-muted/80 cursor-not-allowed"
-                          : isOnPath && solved
-                          ? "border-primary bg-primary/25 shadow-sm"
-                          : isOnPath
-                          ? "border-destructive bg-destructive/15"
-                          : "border-border bg-card hover:bg-muted/40"
-                      }`}
-                      style={{ width: cellSize, height: cellSize }}
-                    >
-                      {isStart ? <span className="text-base font-bold text-primary">S</span>
-                        : isEnd ? <span className="text-base font-bold text-secondary">G</span>
-                        : isWall ? <span className="text-sm">🧱</span>
-                        : cell.arrow ? <span className="text-xl font-bold text-foreground">{ARROW_ICONS[cell.arrow]}</span>
-                        : <span className="text-xs text-muted-foreground/30">·</span>
-                      }
-                    </motion.div>
-                  );
-                })
-              )}
+              {cells.map((cell) => {
+                const isHinted = hintCellId === cell.id;
+                const isClear = !cell.removed && isPathClear(cell, cells, gridSize);
+                return (
+                  <AnimatePresence key={cell.id}>
+                    {!cell.removed ? (
+                      <motion.button
+                        layout
+                        initial={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0, opacity: 0, rotate: 180 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        animate={shakeId === cell.id ? { x: [0, -6, 6, -4, 4, 0], transition: { duration: 0.4 } } : {}}
+                        onClick={() => handleTap(cell)}
+                        className={`rounded-xl border-2 flex items-center justify-center transition-all duration-200 select-none ${
+                          isHinted
+                            ? "border-primary bg-primary/20 shadow-lg shadow-primary/20"
+                            : "border-border bg-card hover:bg-muted/60"
+                        }`}
+                        style={{ width: cellSize, height: cellSize }}
+                        title={isClear ? "Path is clear — tap to remove!" : "Path is blocked"}
+                      >
+                        <span
+                          className={`text-2xl font-bold ${dirColor[cell.direction]} transition-transform`}
+                          style={{ transform: ARROW_ROTATIONS[cell.direction], display: "inline-block" }}
+                        >
+                          ➤
+                        </span>
+                      </motion.button>
+                    ) : (
+                      <div style={{ width: cellSize, height: cellSize }} />
+                    )}
+                  </AnimatePresence>
+                );
+              })}
             </div>
           </div>
 
           <AnimatePresence>
             {solved && (
               <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="text-center space-y-2">
-                <div className="text-4xl">🎉</div>
-                <p className="text-lg font-bold text-primary">Puzzle Solved!</p>
-                <p className="text-xs text-muted-foreground">Completed in {moves} moves</p>
+                <div className="text-5xl">🎉</div>
+                <p className="text-lg font-bold text-primary">Grid Cleared!</p>
+                <p className="text-xs text-muted-foreground">Finished with {lives}/{maxLives} lives remaining</p>
               </motion.div>
             )}
-            {path.length > 0 && !solved && !simulating && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-                <p className="text-xs text-destructive">Path didn't reach the goal — try adjusting your arrows!</p>
+            {gameOver && (
+              <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="text-center space-y-2">
+                <div className="text-5xl">💔</div>
+                <p className="text-lg font-bold text-destructive">Out of Lives!</p>
+                <p className="text-xs text-muted-foreground">{remaining} arrows remaining — try again!</p>
               </motion.div>
             )}
           </AnimatePresence>
 
           <div className="flex flex-wrap justify-center gap-2">
-            <button onClick={simulate} disabled={simulating} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-50">
-              ▶ Simulate
-            </button>
-            <button onClick={reset} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
-              🔄 Reset
-            </button>
             <button onClick={() => setShowHint(!showHint)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
-              💡 Hint
+              💡 {showHint ? "Hide Hint" : "Hint"}
+            </button>
+            <button onClick={() => initLevel(levelIdx)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
+              🔄 Restart
             </button>
             <button onClick={() => setLevelIdx(null)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
               ← Levels
             </button>
             {solved && levelIdx < LEVELS.length - 1 && (
-              <button onClick={() => initLevel(levelIdx + 1)} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-bold text-secondary-foreground">
+              <button onClick={() => initLevel(levelIdx + 1)} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground">
                 Next Level →
               </button>
             )}
-          </div>
-
-          <AnimatePresence>
-            {showHint && (
-              <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center text-xs text-muted-foreground bg-muted/40 rounded-xl p-2 border border-border">
-                💡 {LEVELS[levelIdx].hint}
-              </motion.div>
+            {gameOver && (
+              <button onClick={() => initLevel(levelIdx)} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground">
+                Try Again
+              </button>
             )}
-          </AnimatePresence>
+          </div>
         </div>
       )}
     </GameFrame>
