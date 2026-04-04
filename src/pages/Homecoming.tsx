@@ -165,7 +165,7 @@ const Homecoming = () => {
                   Welcome home! The build is live. 💚
                 </p>
                 <code className="text-xs text-dracula-pink block">
-                  [SUCCESS] friend_name merged into bangalore/main
+                  [SUCCESS] family_friends merged into bangalore/main
                 </code>
               </motion.div>
             )}

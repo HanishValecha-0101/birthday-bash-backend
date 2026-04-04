@@ -112,7 +112,9 @@ const Landing = () => {
                   exit={{ opacity: 0 }}
                   className="text-dracula-red text-sm mt-2"
                 >
-                  [ERROR] Authentication failed. Are you really the birthday boy? 🤔
+                  [ERROR] Authentication failed.
+                  <br />
+                  Hint: Do you really know the birthday boy? 🎂
                 </motion.div>
               )}
             </AnimatePresence>

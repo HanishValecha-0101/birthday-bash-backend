@@ -30,7 +30,7 @@ const photos: PhotoItem[] = [
 ];
 
 const featuredPhotos = [
-  { id: 100, src: "/gallery/featured-family.jpeg", caption: "Family at the airport — the best send-off crew 💚", color: "text-dublin-green" },
+  { id: 100, src: "/gallery/featured-family.jpeg", caption: "Family — the strongest bond 💚", color: "text-dublin-green" },
 ];
 
 interface BoothPhoto {

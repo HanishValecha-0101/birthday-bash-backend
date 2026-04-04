@@ -189,11 +189,12 @@ const Dashboard = () => {
               onClick={toggleHug}
               className={`px-6 py-3 rounded-xl font-bold text-sm transition-all ${
                 hugMode
-                  ? "bg-primary text-primary-foreground glow-pink"
-                  : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground"
+                  ? "text-foreground glow-pink"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
+              style={hugMode ? { backgroundColor: "#7A1E2C" } : undefined}
             >
-              {hugMode ? "🤗 Hug Mode ON" : "🫂 Need a Hug?"}
+              {hugMode ? "🤗 HUG MODE ENABLED" : "🫂 Need a Hug?"}
             </motion.button>
           </div>
         </motion.div>
