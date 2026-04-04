@@ -132,14 +132,13 @@ const Homecoming = () => {
             {/* Message */}
             <div className="bg-dracula-selection rounded-xl p-4 border border-border mb-6">
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Bangalore is waiting for its <span className="text-bangalore-gold font-bold">favorite developer</span> to
-                come back in <span className="text-dublin-green font-bold">2026</span>.
+                Family in India <span className="text-bangalore-gold font-bold">misses you deeply</span> and is waiting to see you again.
               </p>
               <p className="text-sm text-muted-foreground mt-2">
-                I'm waiting at the gate with a sign that says:
+                I'm waiting at the gate holding a sign that says:
               </p>
               <code className="text-sm text-dracula-pink font-bold block mt-1">
-                $ git merge friend_name --force
+                $ git merge family_friends --force
               </code>
             </div>
 
