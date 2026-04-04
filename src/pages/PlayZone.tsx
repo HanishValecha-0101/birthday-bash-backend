@@ -5,8 +5,9 @@ import FootballGame from "@/components/games/FootballGame";
 import SingUnlockGame from "@/components/games/SingUnlockGame";
 import PingPongGame from "@/components/games/PingPongGame";
 import ArrowPuzzle from "@/components/games/ArrowPuzzle";
+import SpinTheWheel from "@/components/games/SpinTheWheel";
 
-type GameId = "pingpong" | "football" | "sing" | "arrow" | null;
+type GameId = "pingpong" | "football" | "sing" | "arrow" | "spin" | null;
 
 const games = [
   {
@@ -22,6 +23,13 @@ const games = [
     title: "Arrow Puzzle",
     description: "Place arrows on a grid to create a path from Start to Goal. 5 brain-teasing levels!",
     tags: ["logic", "puzzle", "5 levels"],
+  },
+  {
+    id: "spin" as const,
+    icon: "🎡",
+    title: "Spin the Wheel",
+    description: "Let fate decide — gift, sing, dance, or pay! No take-backs.",
+    tags: ["party", "fun", "random"],
   },
   {
     id: "football" as const,
@@ -52,7 +60,7 @@ const PlayZone = () => {
             <span className="text-foreground">()</span>
           </h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Four games to keep the party going — arcade, puzzles, football, or karaoke.
+          Five games to keep the party going — arcade, puzzles, spin, football, or karaoke.
           </p>
         </motion.div>
 
@@ -92,6 +100,7 @@ const PlayZone = () => {
               </button>
               {activeGame === "pingpong" && <PingPongGame />}
               {activeGame === "arrow" && <ArrowPuzzle />}
+              {activeGame === "spin" && <SpinTheWheel />}
               {activeGame === "football" && <FootballGame />}
               {activeGame === "sing" && <SingUnlockGame />}
             </motion.div>

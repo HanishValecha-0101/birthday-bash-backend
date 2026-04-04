@@ -1,219 +1,150 @@
 import { useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import GameFrame from "./GameFrame";
 
-type WheelSlice = {
-  label: string;
-  color: string;
-  category: "truth" | "dare" | "drink" | "roast" | "story" | "wildcard";
-  prompt: string;
-};
-
-const slices: WheelSlice[] = [
-  { label: "🍷 Drink", color: "bg-red-900/60", category: "drink", prompt: "" },
-  { label: "🔥 Truth", color: "bg-primary/40", category: "truth", prompt: "" },
-  { label: "💀 Dare", color: "bg-accent/40", category: "dare", prompt: "" },
-  { label: "😂 Roast", color: "bg-secondary/40", category: "roast", prompt: "" },
-  { label: "📖 Story", color: "bg-green-800/40", category: "story", prompt: "" },
-  { label: "🎲 Wild", color: "bg-pink-700/40", category: "wildcard", prompt: "" },
+const SEGMENTS = [
+  { label: "🎁 Gift this person", color: "hsl(var(--primary))" },
+  { label: "💸 Pay for dinner", color: "hsl(var(--secondary))" },
+  { label: "🎤 Sing a song", color: "hsl(var(--accent))" },
+  { label: "💃 Do a dance", color: "hsl(var(--primary) / 0.7)" },
+  { label: "🍰 Buy cake", color: "hsl(var(--secondary) / 0.7)" },
+  { label: "📸 Take a selfie", color: "hsl(var(--accent) / 0.7)" },
+  { label: "🤗 Give a hug", color: "hsl(var(--primary) / 0.5)" },
+  { label: "🎂 Make a wish", color: "hsl(var(--secondary) / 0.5)" },
 ];
 
-const prompts: Record<string, string[]> = {
-  truth: [
-    "What's the most embarrassing thing you've done after midnight?",
-    "What's a secret skill nobody here knows about?",
-    "What's the worst date you've ever been on?",
-    "If you could relive one night from your 20s, which one?",
-    "What's the most expensive impulse buy you've made?",
-    "What's a lie you told that somehow worked out perfectly?",
-    "What's your most controversial food opinion?",
-    "Which person in this room would survive longest in a zombie apocalypse?",
-    "What's something you pretend to like but actually hate?",
-    "What's the most trouble you've gotten into with the birthday boy?",
-  ],
-  dare: [
-    "Do your best impression of the birthday boy for 15 seconds.",
-    "Let the group post a story on your Instagram right now.",
-    "Call the last person in your contacts and sing happy birthday.",
-    "Speak in an accent of the group's choice for the next 3 rounds.",
-    "Show the group your most recent Google search.",
-    "Do 10 push-ups while the group roasts you.",
-    "Send 'I miss you' to the 5th contact in your phone.",
-    "Let someone go through your camera roll for 30 seconds.",
-    "Dance with no music for 20 seconds. Commit fully.",
-    "Recreate a childhood photo of the birthday boy right now.",
-  ],
-  drink: [
-    "Everyone who's older than 28 drinks.",
-    "The person with the most embarrassing lock screen drinks.",
-    "Everyone who has lied about being 'on the way' today drinks.",
-    "Birthday boy picks someone. They drink.",
-    "Last person to raise their hand drinks twice.",
-    "Everyone who has ghosted someone drinks.",
-    "If you've ever cried at a movie, take a sip.",
-    "Everyone whose phone is below 30% drinks.",
-    "Drink if you've ever been kicked out of a bar.",
-    "The tallest and shortest person both drink.",
-  ],
-  roast: [
-    "Roast the birthday boy's fashion sense in 10 seconds.",
-    "Describe the birthday boy's dating life as a movie genre.",
-    "What would the birthday boy's Yelp review say? 1-5 stars.",
-    "If the birthday boy was a cocktail, what would it be called?",
-    "Sum up the birthday boy in one brutally honest emoji.",
-    "What job would the birthday boy be terrible at?",
-    "Describe the birthday boy's energy using only food metaphors.",
-    "Rate the birthday boy's texting speed. Be honest.",
-  ],
-  story: [
-    "Tell the funniest story involving the birthday boy in 30 seconds.",
-    "What's your earliest memory of the birthday boy?",
-    "Describe a trip or night out with the birthday boy — the uncensored version.",
-    "What's something the birthday boy said that lives in your head rent-free?",
-    "Tell a story where the birthday boy was completely wrong but doubled down.",
-    "What was your first impression of the birthday boy? Be brutally honest.",
-    "What's the most chaotic plan the birthday boy ever came up with?",
-  ],
-  wildcard: [
-    "Everyone in the room shares one word to describe the birthday boy. GO!",
-    "Group vote: who here is most likely to get arrested abroad?",
-    "Swap phones with someone for the next round.",
-    "The birthday boy assigns someone their punishment: truth, dare, or drink.",
-    "Rock paper scissors with the person to your left. Loser drinks.",
-    "Everyone writes a birthday prediction on their phone. Read them aloud.",
-    "The oldest person in the room tells a story. The youngest acts it out.",
-  ],
-};
-
-const getRandomPrompt = (category: string): string => {
-  const pool = prompts[category] || prompts.wildcard;
-  return pool[Math.floor(Math.random() * pool.length)];
-};
+const SEGMENT_ANGLE = 360 / SEGMENTS.length;
 
 const SpinTheWheel = () => {
-  const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
-  const [result, setResult] = useState<{ slice: WheelSlice; prompt: string } | null>(null);
-  const [history, setHistory] = useState<{ slice: WheelSlice; prompt: string }[]>([]);
-  const spinCount = useRef(0);
+  const [rotation, setRotation] = useState(0);
+  const [result, setResult] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const spin = () => {
     if (spinning) return;
+
     setSpinning(true);
     setResult(null);
 
-    const extraSpins = 5 + Math.random() * 3;
-    const sliceAngle = 360 / slices.length;
-    const landingIndex = Math.floor(Math.random() * slices.length);
-    const targetAngle = rotation + extraSpins * 360 + landingIndex * sliceAngle + Math.random() * sliceAngle * 0.6;
+    const extraSpins = 5 + Math.random() * 5;
+    const randomAngle = Math.random() * 360;
+    const totalRotation = rotation + extraSpins * 360 + randomAngle;
 
-    setRotation(targetAngle);
+    setRotation(totalRotation);
 
     setTimeout(() => {
-      const slice = slices[landingIndex];
-      const prompt = getRandomPrompt(slice.category);
-      const entry = { slice, prompt };
-      setResult(entry);
-      setHistory((prev) => [entry, ...prev].slice(0, 10));
+      const normalizedAngle = totalRotation % 360;
+      const pointerAngle = (360 - normalizedAngle + 90) % 360;
+      const segmentIndex = Math.floor(pointerAngle / SEGMENT_ANGLE) % SEGMENTS.length;
+
+      setResult(SEGMENTS[segmentIndex].label);
       setSpinning(false);
-      spinCount.current += 1;
-    }, 3200);
+    }, 4000);
+  };
+
+  const wheelSize = 280;
+  const radius = wheelSize / 2;
+  const centerX = radius;
+  const centerY = radius;
+
+  const getSegmentPath = (index: number) => {
+    const startAngle = (index * SEGMENT_ANGLE - 90) * (Math.PI / 180);
+    const endAngle = ((index + 1) * SEGMENT_ANGLE - 90) * (Math.PI / 180);
+
+    const x1 = centerX + radius * Math.cos(startAngle);
+    const y1 = centerY + radius * Math.sin(startAngle);
+    const x2 = centerX + radius * Math.cos(endAngle);
+    const y2 = centerY + radius * Math.sin(endAngle);
+
+    const largeArc = SEGMENT_ANGLE > 180 ? 1 : 0;
+
+    return `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+  };
+
+  const getTextPosition = (index: number) => {
+    const midAngle = ((index + 0.5) * SEGMENT_ANGLE - 90) * (Math.PI / 180);
+    const textRadius = radius * 0.62;
+
+    return {
+      x: centerX + textRadius * Math.cos(midAngle),
+      y: centerY + textRadius * Math.sin(midAngle),
+      angle: (index + 0.5) * SEGMENT_ANGLE,
+    };
   };
 
   return (
-    <GameFrame
-      title="🎡 Spin the Wheel"
-      subtitle="Truth, dare, drink, roast — let the wheel decide. No chickening out at 30."
-      badge="multi-player"
-    >
-      <div className="space-y-4">
-        {/* Wheel */}
-        <div className="relative mx-auto h-64 w-64">
-          {/* Pointer */}
-          <div className="absolute -top-2 left-1/2 z-20 -translate-x-1/2 text-2xl">▼</div>
+    <GameFrame title="🎡 Spin the Wheel" subtitle="Spin and see what fate decides for the birthday party!" badge="party">
+      <div className="flex flex-col items-center space-y-5">
+        {/* Pointer */}
+        <div className="relative">
+          <div className="absolute -top-3 left-1/2 z-10 -translate-x-1/2">
+            <div className="h-0 w-0 border-l-[12px] border-r-[12px] border-t-[20px] border-l-transparent border-r-transparent border-t-primary drop-shadow-lg" />
+          </div>
 
-          {/* Wheel circle */}
+          {/* Wheel */}
           <motion.div
             animate={{ rotate: rotation }}
-            transition={{ duration: 3, ease: [0.2, 0.8, 0.3, 1] }}
-            className="relative h-full w-full rounded-full border-4 border-border bg-card shadow-2xl"
+            transition={{ duration: 4, ease: [0.15, 0.85, 0.35, 1.02] }}
+            style={{ width: wheelSize, height: wheelSize }}
           >
-            {slices.map((slice, i) => {
-              const angle = (i * 360) / slices.length;
-              return (
-                <div
-                  key={slice.category}
-                  className="absolute left-1/2 top-0 h-1/2 w-1/2 origin-bottom-left"
-                  style={{ transform: `rotate(${angle}deg) skewY(-${90 - 360 / slices.length}deg)` }}
-                >
-                  <div className={`absolute inset-0 ${slice.color} rounded-tl-full border-l border-t border-border/30`} />
-                </div>
-              );
-            })}
-            {/* Slice labels */}
-            {slices.map((slice, i) => {
-              const angle = (i * 360) / slices.length + 360 / slices.length / 2;
-              const rad = (angle * Math.PI) / 180;
-              const r = 38;
-              return (
-                <div
-                  key={`label-${slice.category}`}
-                  className="absolute text-xs font-bold text-foreground"
-                  style={{
-                    left: `${50 + r * Math.sin(rad)}%`,
-                    top: `${50 - r * Math.cos(rad)}%`,
-                    transform: `translate(-50%, -50%) rotate(${angle}deg)`,
-                  }}
-                >
-                  {slice.label}
-                </div>
-              );
-            })}
-            {/* Center */}
-            <div className="absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-border bg-background text-lg font-bold text-foreground shadow-md">
-              🎂
-            </div>
+            <svg width={wheelSize} height={wheelSize} viewBox={`0 0 ${wheelSize} ${wheelSize}`}>
+              {SEGMENTS.map((segment, i) => (
+                <g key={i}>
+                  <path d={getSegmentPath(i)} fill={segment.color} stroke="hsl(var(--border))" strokeWidth="1.5" />
+                  <text
+                    x={getTextPosition(i).x}
+                    y={getTextPosition(i).y}
+                    fill="hsl(var(--foreground))"
+                    fontSize="10"
+                    fontWeight="bold"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    transform={`rotate(${getTextPosition(i).angle}, ${getTextPosition(i).x}, ${getTextPosition(i).y})`}
+                  >
+                    {segment.label.split(" ").slice(1).join(" ")}
+                  </text>
+                  <text
+                    x={getTextPosition(i).x}
+                    y={getTextPosition(i).y - 12}
+                    fontSize="16"
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    transform={`rotate(${getTextPosition(i).angle}, ${getTextPosition(i).x}, ${getTextPosition(i).y - 12})`}
+                  >
+                    {segment.label.split(" ")[0]}
+                  </text>
+                </g>
+              ))}
+              <circle cx={centerX} cy={centerY} r="18" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2" />
+              <text x={centerX} y={centerY} textAnchor="middle" dominantBaseline="middle" fontSize="14">
+                🎂
+              </text>
+            </svg>
           </motion.div>
         </div>
 
-        {/* Spin button */}
-        <button
+        {/* Spin Button */}
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={spin}
           disabled={spinning}
-          className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground transition-transform hover:scale-[1.02] disabled:opacity-50"
+          className="rounded-xl bg-primary px-8 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"
         >
-          {spinning ? "Spinning..." : spinCount.current === 0 ? "Spin the Wheel 🎡" : "Spin Again"}
-        </button>
+          {spinning ? "Spinning..." : "🎡 Spin!"}
+        </motion.button>
 
         {/* Result */}
-        <AnimatePresence mode="wait">
-          {result && (
-            <motion.div
-              key={`${spinCount.current}`}
-              initial={{ opacity: 0, y: 16, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="rounded-[1.4rem] border border-border bg-muted/50 p-5 text-center"
-            >
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{result.slice.label}</div>
-              <p className="mt-3 text-sm font-medium leading-relaxed text-foreground">{result.prompt}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* History */}
-        {history.length > 1 && (
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Previous spins</p>
-            <div className="max-h-32 space-y-1.5 overflow-y-auto">
-              {history.slice(1).map((h, i) => (
-                <div key={i} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                  <span className="mr-2">{h.slice.label}</span>
-                  {h.prompt.slice(0, 60)}…
-                </div>
-              ))}
-            </div>
-          </div>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-2 rounded-2xl border border-primary/30 bg-primary/10 px-6 py-4 text-center"
+          >
+            <p className="text-2xl">{result.split(" ")[0]}</p>
+            <p className="text-sm font-bold text-foreground">{result}</p>
+            <p className="text-xs text-muted-foreground">The wheel has spoken! No take-backs 😄</p>
+          </motion.div>
         )}
       </div>
     </GameFrame>
