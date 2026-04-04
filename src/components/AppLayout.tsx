@@ -97,6 +97,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       <div className="px-4 py-3 border-t border-border text-[10px] text-muted-foreground">
         <span className="text-dublin-green">●</span> connected • Dublin → Bangalore
       </div>
+      <div className="px-4 pb-3 text-[10px] text-muted-foreground/60 text-center">
+        made with 💚 by <span className="text-foreground/50">bhavi</span> & <span className="text-foreground/50">hanish</span>
+      </div>
     </div>
   );
 

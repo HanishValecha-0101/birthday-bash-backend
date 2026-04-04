@@ -128,6 +128,9 @@ const Auth = () => {
             </div>
           </div>
         </div>
+        <p className="mt-4 text-center text-[11px] text-muted-foreground/50">
+          made with 💚 by <span className="text-foreground/40">bhavi</span> & <span className="text-foreground/40">hanish</span>
+        </p>
       </motion.div>
     </div>
   );
