@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/AppLayout";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PhotoItem {
   id: number;
@@ -28,15 +29,32 @@ const photos: PhotoItem[] = [
   { id: 15, src: "/gallery/photo15.jpeg", caption: "Cheers to us! 🥂", category: "friends", color: "text-dracula-pink" },
 ];
 
-const boothKey = "birthday-booth-captures";
+const featuredPhotos = [
+  { id: 100, src: "/gallery/featured-family.jpeg", caption: "Family at the airport — the best send-off crew 💚", color: "text-dublin-green" },
+];
+
+interface BoothPhoto {
+  id: string;
+  image_url: string;
+  created_at: string | null;
+}
 
 const Gallery = () => {
-  const [lightbox, setLightbox] = useState<PhotoItem | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; caption: string; color: string } | null>(null);
   const [filter, setFilter] = useState<string>("all");
+  const [boothPhotos, setBoothPhotos] = useState<BoothPhoto[]>([]);
 
-  const boothPhotos: string[] = (() => {
-    try { return JSON.parse(localStorage.getItem(boothKey) || "[]"); } catch { return []; }
-  })();
+  const fetchBoothPhotos = useCallback(async () => {
+    const { data } = await supabase
+      .from("photos")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) setBoothPhotos(data);
+  }, []);
+
+  useEffect(() => {
+    fetchBoothPhotos();
+  }, [fetchBoothPhotos]);
 
   const categories = ["all", ...Array.from(new Set(photos.map((p) => p.category)))];
   const filtered = filter === "all" ? photos : photos.filter((p) => p.category === filter);
@@ -78,7 +96,7 @@ const Gallery = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.06 }}
               whileHover={{ scale: 1.02, y: -4 }}
-              onClick={() => setLightbox(photo)}
+              onClick={() => setLightbox({ src: photo.src, caption: photo.caption, color: photo.color })}
               className="break-inside-avoid bg-card rounded-2xl border border-border overflow-hidden cursor-pointer group"
             >
               <div className="px-4 py-2 bg-dracula-selection border-b border-border flex items-center gap-2">
@@ -88,12 +106,7 @@ const Gallery = () => {
                 <span className="text-[10px] text-muted-foreground ml-1">{photo.category}/{photo.id}.jpg</span>
               </div>
               <div className="relative overflow-hidden">
-                <img
-                  src={photo.src}
-                  alt={photo.caption}
-                  className="w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  loading="lazy"
-                />
+                <img src={photo.src} alt={photo.caption} className="w-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
               </div>
               <div className="p-4">
                 <code className={`text-sm ${photo.color} font-bold`}>{photo.caption}</code>
@@ -102,19 +115,56 @@ const Gallery = () => {
           ))}
         </div>
 
+        {/* Featured Birthday Photos */}
+        <div className="space-y-4 pt-6 border-t border-border">
+          <h2 className="text-lg font-bold text-foreground">
+            <span className="text-dracula-pink">const</span>{" "}
+            <span className="text-dublin-green">featured</span>{" "}
+            <span className="text-foreground">= [</span>
+          </h2>
+          <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
+            {featuredPhotos.map((photo, i) => (
+              <motion.div
+                key={photo.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+                whileHover={{ scale: 1.02, y: -4 }}
+                onClick={() => setLightbox({ src: photo.src, caption: photo.caption, color: photo.color })}
+                className="break-inside-avoid bg-card rounded-2xl border border-border overflow-hidden cursor-pointer group"
+              >
+                <div className="px-4 py-2 bg-dracula-selection border-b border-border flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-destructive" />
+                  <div className="w-2 h-2 rounded-full bg-secondary" />
+                  <div className="w-2 h-2 rounded-full bg-primary" />
+                  <span className="text-[10px] text-muted-foreground ml-1">featured/{photo.id}.jpg</span>
+                </div>
+                <div className="relative overflow-hidden">
+                  <img src={photo.src} alt={photo.caption} className="w-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                </div>
+                <div className="p-4">
+                  <code className={`text-sm ${photo.color} font-bold`}>{photo.caption}</code>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          <p className="text-muted-foreground text-lg">];</p>
+        </div>
+
+        {/* Booth Captures from Supabase */}
         {boothPhotos.length > 0 && (
           <div className="space-y-4 pt-6 border-t border-border">
             <h2 className="text-lg font-bold text-foreground">📸 Booth Captures</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {boothPhotos.map((src, i) => (
+              {boothPhotos.map((photo, i) => (
                 <motion.div
-                  key={i}
+                  key={photo.id}
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className="rounded-2xl border border-border overflow-hidden bg-card cursor-pointer"
-                  onClick={() => setLightbox({ id: 100 + i, src, caption: `Booth capture #${i + 1}`, category: "booth", color: "text-dracula-cyan" })}
+                  onClick={() => setLightbox({ src: photo.image_url, caption: `Booth capture #${i + 1}`, color: "text-dracula-cyan" })}
                 >
-                  <img src={src} alt={`Booth capture ${i + 1}`} className="w-full aspect-square object-cover" />
+                  <img src={photo.image_url} alt={`Booth capture ${i + 1}`} className="w-full aspect-square object-cover" />
                 </motion.div>
               ))}
             </div>

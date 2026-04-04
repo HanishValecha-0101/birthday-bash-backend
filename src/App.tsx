@@ -13,6 +13,7 @@ import Wishes from "./pages/Wishes";
 import NotFound from "./pages/NotFound";
 import PhotoBooth from "./pages/PhotoBooth";
 import DublinGuide from "./pages/DublinGuide";
+import Auth from "./pages/Auth";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/play" element={<PlayZone />} />
