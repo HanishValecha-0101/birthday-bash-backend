@@ -13,15 +13,15 @@ const games = [
     id: "pingpong" as const,
     icon: "🏓",
     title: "Ping Pong",
-    description: "Classic retro arcade — two-player local or challenge the AI!",
-    tags: ["arcade", "2-player", "AI mode"],
+    description: "Challenge the AI in a retro arcade classic — can you beat the robot?",
+    tags: ["arcade", "vs AI", "speed ramp"],
   },
   {
     id: "arrow" as const,
-    icon: "✈️",
-    title: "Dublin → India",
-    description: "Place arrows on the grid to guide the traveler from Dublin to India!",
-    tags: ["puzzle", "5 levels", "travel"],
+    icon: "🧩",
+    title: "Arrow Puzzle",
+    description: "Place arrows on a grid to create a path from Start to Goal. 5 brain-teasing levels!",
+    tags: ["logic", "puzzle", "5 levels"],
   },
   {
     id: "football" as const,
@@ -52,7 +52,7 @@ const PlayZone = () => {
             <span className="text-foreground">()</span>
           </h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Four interactive games — ping pong, arrow puzzles, football challenge, or sing your heart out!
+            Four games to keep the party going — arcade, puzzles, football, or karaoke.
           </p>
         </motion.div>
 
