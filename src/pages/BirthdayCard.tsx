@@ -49,41 +49,37 @@ const BirthdayCard = () => {
               </p>
 
               <p className="text-muted-foreground">
-                If our friendship was a codebase, it would have zero bugs, 100% test coverage,
-                and the most elegant architecture anyone has ever seen. You're the kind of friend
-                who makes <Highlight color="text-dracula-cyan">life.debug()</Highlight> actually work.
-              </p>
-
-              <p className="text-muted-foreground">
-                From those late-night gym sessions where we pretended we knew what we were doing,
-                to the football matches where your passes were more accurate than my code reviews — every
-                moment with you has been a <Highlight color="text-bangalore-gold">commit</Highlight> worth
-                keeping in the main branch <Highlight color="text-dracula-pink">forever</Highlight>.
+                If our friendship was a codebase, it would have zero bugs, 100% test coverage, and the most elegant
+                architecture anyone has ever seen. You're the kind of friend who makes{" "}
+                <Highlight color="text-dracula-cyan">life.debug()</Highlight> actually work.
               </p>
 
               <div className="bg-dracula-selection rounded-xl p-4 border border-border">
                 <div className="text-xs text-muted-foreground mb-1">// fun fact</div>
                 <code className="text-sm text-dublin-green">
-                  const ourFriendship = new Bond({"{"}<br />
-                  &nbsp;&nbsp;strength: Infinity,<br />
-                  &nbsp;&nbsp;tiramisuShared: "countless",<br />
-                  &nbsp;&nbsp;insideJokes: Number.MAX_SAFE_INTEGER,<br />
-                  &nbsp;&nbsp;distance: "just a flight away"<br />
+                  const ourFriendship = new Bond({"{"}
+                  <br />
+                  &nbsp;&nbsp;strength: Infinity,
+                  <br />
+                  &nbsp;&nbsp;tiramisuShared: "countless",
+                  <br />
+                  &nbsp;&nbsp;insideJokes: Number.MAX_SAFE_INTEGER,
+                  <br />
+                  &nbsp;&nbsp;distance: "just a flight away"
+                  <br />
                   {"}"});
                 </code>
               </div>
 
               <p className="text-muted-foreground">
-                Dublin might have your <Highlight color="text-dublin-green">present</Highlight>, but
-                Bangalore has your <Highlight color="text-bangalore-gold">heart</Highlight> — and I have
-                your back, <Highlight color="text-dracula-pink">forever</Highlight> and always.
+                Dublin might have your <Highlight color="text-dublin-green">present</Highlight>, but india has your{" "}
+                <Highlight color="text-bangalore-gold">heart</Highlight>
               </p>
 
               <p className="text-muted-foreground">
-                This year, I wish you more PRs merged, more personal records broken at the gym,
-                more winning goals, and more slices of tiramisu than your metabolism can handle.
-                You deserve every <Highlight color="text-dracula-purple">pixel</Highlight> of happiness
-                that life can render.
+                This year, I wish you more PRs merged, more personal records broken at the gym, more winning goals, and
+                more slices of tiramisu than your metabolism can handle. You deserve every{" "}
+                <Highlight color="text-dracula-purple">pixel</Highlight> of happiness that life can render.
               </p>
 
               <p className="text-muted-foreground">
@@ -93,18 +89,20 @@ const BirthdayCard = () => {
 
               <div className="mt-6 space-y-1">
                 <p className="text-foreground font-bold">
-                  With all the love a <span className="text-dracula-purple">function</span> can <span className="text-dublin-green">return</span>,
+                  With all the love a <span className="text-dracula-purple">function</span> can{" "}
+                  <span className="text-dublin-green">return</span>,
                 </p>
-                <p className="text-bangalore-gold font-bold">
-                  Your Best Friend ❤️
-                </p>
+                <p className="text-bangalore-gold font-bold">Your Partner In Crime ❤️</p>
               </div>
 
               <div className="bg-dracula-selection rounded-xl p-4 border border-border mt-4">
                 <code className="text-xs text-muted-foreground">
-                  git log --oneline --author="bestfriend"<br />
-                  <span className="text-dublin-green">a1b2c3d</span> Added unconditional love module<br />
-                  <span className="text-dublin-green">e4f5g6h</span> Fixed broken hearts with friendship.patch<br />
+                  git log --oneline --author="bestfriend"
+                  <br />
+                  <span className="text-dublin-green">a1b2c3d</span> Added unconditional love module
+                  <br />
+                  <span className="text-dublin-green">e4f5g6h</span> Fixed broken hearts with friendship.patch
+                  <br />
                   <span className="text-dublin-green">i7j8k9l</span> Deployed happiness to production 🚀
                 </code>
               </div>

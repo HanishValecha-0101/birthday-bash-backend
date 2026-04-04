@@ -26,9 +26,7 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   const isAdmin =
-    !!user?.email &&
-    !!import.meta.env.VITE_ADMIN_EMAIL &&
-    user.email === import.meta.env.VITE_ADMIN_EMAIL;
+    !!user?.email && !!import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL;
 
   useEffect(() => {
     const {
