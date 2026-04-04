@@ -1,13 +1,6 @@
-import { useState, useCallback, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useCallback, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import GameFrame from "./GameFrame";
-
-/*
- * Arrow Puzzle — Tap-Away Style
- * Grid filled with arrows pointing in different directions.
- * Tap an arrow whose path ahead is clear (no arrows blocking) to remove it.
- * Clear the entire grid to win. Tapping a blocked arrow costs a life.
- */
 
 type Direction = "up" | "down" | "left" | "right";
 
@@ -26,6 +19,11 @@ interface Level {
   seed: number;
 }
 
+interface Position {
+  row: number;
+  col: number;
+}
+
 const LEVELS: Level[] = [
   { name: "Level 1 — Gentle Start", gridSize: 3, lives: 5, seed: 42 },
   { name: "Level 2 — Warming Up", gridSize: 4, lives: 5, seed: 77 },
@@ -38,48 +36,96 @@ const LEVELS: Level[] = [
 ];
 
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
-const ARROW_ICONS: Record<Direction, string> = { up: "↑", down: "↓", left: "←", right: "→" };
-const ARROW_ROTATIONS: Record<Direction, string> = { up: "rotate(-90deg)", right: "rotate(0deg)", down: "rotate(90deg)", left: "rotate(180deg)" };
+const ARROW_ROTATIONS: Record<Direction, string> = {
+  up: "rotate(-90deg)",
+  right: "rotate(0deg)",
+  down: "rotate(90deg)",
+  left: "rotate(180deg)",
+};
+
+const DIRECTION_COLORS: Record<Direction, string> = {
+  up: "text-primary",
+  down: "text-secondary",
+  left: "text-accent",
+  right: "text-muted-foreground",
+};
 
 function seededRandom(seed: number) {
-  let s = seed;
+  let value = seed;
+
   return () => {
-    s = (s * 16807 + 0) % 2147483647;
-    return (s - 1) / 2147483646;
+    value = (value * 16807) % 2147483647;
+    return (value - 1) / 2147483646;
   };
 }
 
-function generateGrid(size: number, seed: number): ArrowCell[] {
-  const rng = seededRandom(seed);
-  const cells: ArrowCell[] = [];
-  let id = 0;
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      cells.push({
-        id: id++,
-        direction: DIRECTIONS[Math.floor(rng() * 4)],
-        row: r,
-        col: c,
-        removed: false,
-      });
+function getClearDirections(position: Position, activePositions: Position[]): Direction[] {
+  return DIRECTIONS.filter((direction) => {
+    switch (direction) {
+      case "up":
+        return !activePositions.some((cell) => cell.col === position.col && cell.row < position.row);
+      case "down":
+        return !activePositions.some((cell) => cell.col === position.col && cell.row > position.row);
+      case "left":
+        return !activePositions.some((cell) => cell.row === position.row && cell.col < position.col);
+      case "right":
+        return !activePositions.some((cell) => cell.row === position.row && cell.col > position.col);
+      default:
+        return false;
     }
-  }
-  return cells;
+  });
 }
 
-function isPathClear(cell: ArrowCell, allCells: ArrowCell[], gridSize: number): boolean {
-  const { direction, row, col } = cell;
-  const activeCells = allCells.filter((c) => !c.removed && c.id !== cell.id);
+function generateSolvableGrid(size: number, seed: number): ArrowCell[] {
+  const random = seededRandom(seed);
+  const remaining: Position[] = [];
 
-  switch (direction) {
+  for (let row = 0; row < size; row += 1) {
+    for (let col = 0; col < size; col += 1) {
+      remaining.push({ row, col });
+    }
+  }
+
+  const orderedCells: ArrowCell[] = [];
+
+  while (remaining.length > 0) {
+    const candidates = remaining
+      .map((position) => ({ position, exits: getClearDirections(position, remaining) }))
+      .filter((candidate) => candidate.exits.length > 0);
+
+    const chosen = candidates[Math.floor(random() * candidates.length)];
+    const direction = chosen.exits[Math.floor(random() * chosen.exits.length)];
+
+    orderedCells.push({
+      id: chosen.position.row * size + chosen.position.col,
+      row: chosen.position.row,
+      col: chosen.position.col,
+      direction,
+      removed: false,
+    });
+
+    const nextRemaining = remaining.findIndex(
+      (position) => position.row === chosen.position.row && position.col === chosen.position.col,
+    );
+
+    remaining.splice(nextRemaining, 1);
+  }
+
+  return orderedCells.sort((a, b) => a.row - b.row || a.col - b.col);
+}
+
+function isPathClear(cell: ArrowCell, cells: ArrowCell[]) {
+  const activeCells = cells.filter((entry) => !entry.removed && entry.id !== cell.id);
+
+  switch (cell.direction) {
     case "up":
-      return !activeCells.some((c) => c.col === col && c.row < row);
+      return !activeCells.some((entry) => entry.col === cell.col && entry.row < cell.row);
     case "down":
-      return !activeCells.some((c) => c.col === col && c.row > row);
+      return !activeCells.some((entry) => entry.col === cell.col && entry.row > cell.row);
     case "left":
-      return !activeCells.some((c) => c.row === row && c.col < col);
+      return !activeCells.some((entry) => entry.row === cell.row && entry.col < cell.col);
     case "right":
-      return !activeCells.some((c) => c.row === row && c.col > col);
+      return !activeCells.some((entry) => entry.row === cell.row && entry.col > cell.col);
     default:
       return false;
   }
@@ -93,73 +139,85 @@ const ArrowPuzzle = () => {
   const [shakeId, setShakeId] = useState<number | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [boardSeed, setBoardSeed] = useState(0);
 
-  const remaining = cells.filter((c) => !c.removed).length;
-  const solved = remaining === 0 && levelIdx !== null && !gameOver;
-
+  const remaining = cells.filter((cell) => !cell.removed).length;
+  const solved = levelIdx !== null && remaining === 0 && !gameOver;
   const gridSize = levelIdx !== null ? LEVELS[levelIdx].gridSize : 0;
+  const cellSize = gridSize <= 4 ? 64 : gridSize <= 5 ? 54 : gridSize <= 6 ? 46 : 40;
 
   const hintCellId = useMemo(() => {
     if (!showHint) return null;
-    const active = cells.filter((c) => !c.removed);
-    const clearCell = active.find((c) => isPathClear(c, cells, gridSize));
-    return clearCell?.id ?? null;
-  }, [showHint, cells, gridSize]);
 
-  const initLevel = useCallback((idx: number) => {
-    const lvl = LEVELS[idx];
-    setCells(generateGrid(lvl.gridSize, lvl.seed));
-    setLives(lvl.lives);
-    setMaxLives(lvl.lives);
+    return cells.find((cell) => !cell.removed && isPathClear(cell, cells))?.id ?? null;
+  }, [cells, showHint]);
+
+  const initLevel = useCallback((idx: number, freshSeed = Date.now()) => {
+    const level = LEVELS[idx];
+
+    setBoardSeed(freshSeed);
+    setCells(generateSolvableGrid(level.gridSize, level.seed + freshSeed));
+    setLives(level.lives);
+    setMaxLives(level.lives);
     setLevelIdx(idx);
     setShakeId(null);
     setShowHint(false);
     setGameOver(false);
   }, []);
 
+  const restartLevel = () => {
+    if (levelIdx === null) return;
+    initLevel(levelIdx, Date.now() + boardSeed + 1);
+  };
+
   const handleTap = (cell: ArrowCell) => {
     if (cell.removed || solved || gameOver) return;
 
-    if (isPathClear(cell, cells, gridSize)) {
-      setCells((prev) => prev.map((c) => (c.id === cell.id ? { ...c, removed: true } : c)));
+    if (isPathClear(cell, cells)) {
+      setCells((current) => current.map((entry) => (entry.id === cell.id ? { ...entry, removed: true } : entry)));
       setShowHint(false);
-    } else {
-      setShakeId(cell.id);
-      setTimeout(() => setShakeId(null), 500);
-      const newLives = lives - 1;
-      setLives(newLives);
-      if (newLives <= 0) setGameOver(true);
+      return;
     }
-  };
 
-  const cellSize = gridSize <= 4 ? 64 : gridSize <= 5 ? 54 : gridSize <= 6 ? 46 : 40;
+    setShakeId(cell.id);
+    window.setTimeout(() => setShakeId(null), 350);
 
-  const dirColor: Record<Direction, string> = {
-    up: "text-primary",
-    down: "text-secondary",
-    left: "text-dracula-pink",
-    right: "text-dracula-cyan",
+    setLives((current) => {
+      const nextLives = current - 1;
+
+      if (nextLives <= 0) {
+        setGameOver(true);
+      }
+
+      return nextLives;
+    });
   };
 
   return (
-    <GameFrame title="🧩 Arrow Puzzle" subtitle="Tap arrows to clear the grid. Find free paths!" badge="logic">
+    <GameFrame title="🧩 Arrow Puzzle" subtitle="Tap arrows with a free path and clear the whole board." badge="logic">
       {levelIdx === null ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-          <div className="rounded-2xl border border-border bg-muted/40 p-4 space-y-2">
-            <p className="font-semibold text-foreground text-sm">📋 How to Play</p>
+          <div className="space-y-2 rounded-2xl border border-border bg-muted/40 p-4">
+            <p className="text-sm font-semibold text-foreground">📋 How to Play</p>
             <ul className="space-y-1 text-xs text-muted-foreground">
-              <li>🎯 <strong>Goal:</strong> Clear all arrows from the grid</li>
-              <li>👆 <strong>Tap</strong> an arrow whose path ahead is clear (no arrows blocking it)</li>
-              <li>❌ Tapping a <strong>blocked</strong> arrow costs a life</li>
-              <li>💡 Use <strong>Hint</strong> to highlight a safe arrow</li>
-              <li>🧠 Plan the order — think before you tap!</li>
+              <li>🎯 Clear the grid by tapping arrows with an open path.</li>
+              <li>👆 If another arrow blocks the way, that tap costs one life.</li>
+              <li>💡 Use Hint when you want one safe move highlighted.</li>
+              <li>🔄 Restart always gives you a fresh solvable board.</li>
             </ul>
           </div>
+
           <div className="grid grid-cols-2 gap-2">
-            {LEVELS.map((lvl, i) => (
-              <button key={i} onClick={() => initLevel(i)} className="rounded-xl border border-border bg-muted/40 p-3 text-left text-sm hover:bg-muted/70 transition-colors">
-                <span className="font-bold text-foreground">{lvl.name}</span>
-                <span className="block text-xs text-muted-foreground mt-1">{lvl.gridSize}×{lvl.gridSize} • {lvl.lives} lives</span>
+            {LEVELS.map((level, index) => (
+              <button
+                key={level.name}
+                onClick={() => initLevel(index)}
+                className="rounded-xl border border-border bg-muted/40 p-3 text-left text-sm transition-colors hover:bg-muted/70"
+              >
+                <span className="font-bold text-foreground">{level.name}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {level.gridSize}×{level.gridSize} • {level.lives} lives
+                </span>
               </button>
             ))}
           </div>
@@ -169,8 +227,12 @@ const ArrowPuzzle = () => {
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">{LEVELS[levelIdx].name}</span>
             <div className="flex items-center gap-3">
-              <span>Remaining: <strong className="text-foreground">{remaining}</strong></span>
-              <span>Lives: <strong className={lives <= 1 ? "text-destructive" : "text-foreground"}>{"❤️".repeat(lives)}{"🖤".repeat(maxLives - lives)}</strong></span>
+              <span>
+                Remaining: <strong className="text-foreground">{remaining}</strong>
+              </span>
+              <span>
+                Lives: <strong className={lives <= 1 ? "text-destructive" : "text-foreground"}>{"❤️".repeat(lives)}{"🖤".repeat(maxLives - lives)}</strong>
+              </span>
             </div>
           </div>
 
@@ -183,78 +245,85 @@ const ArrowPuzzle = () => {
             >
               {cells.map((cell) => {
                 const isHinted = hintCellId === cell.id;
-                const isClear = !cell.removed && isPathClear(cell, cells, gridSize);
+                const isClear = !cell.removed && isPathClear(cell, cells);
+
                 return (
-                  <AnimatePresence key={cell.id}>
+                  <motion.button
+                    key={cell.id}
+                    layout
+                    initial={false}
+                    animate={
+                      cell.removed
+                        ? { scale: 0.25, opacity: 0 }
+                        : shakeId === cell.id
+                          ? { x: [0, -6, 6, -4, 4, 0] }
+                          : { scale: 1, opacity: 1, x: 0 }
+                    }
+                    transition={{ duration: 0.25 }}
+                    onClick={() => handleTap(cell)}
+                    disabled={cell.removed}
+                    title={isClear ? "Path is clear — tap to remove" : "This arrow is blocked"}
+                    className={`flex items-center justify-center rounded-xl border-2 transition-all duration-200 select-none ${
+                      isHinted
+                        ? "border-primary bg-primary/20 shadow-lg shadow-primary/20"
+                        : cell.removed
+                          ? "pointer-events-none border-border/30 bg-muted/10"
+                          : "border-border bg-card hover:bg-muted/60"
+                    }`}
+                    style={{ width: cellSize, height: cellSize }}
+                  >
                     {!cell.removed ? (
-                      <motion.button
-                        layout
-                        initial={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0, opacity: 0, rotate: 180 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        animate={shakeId === cell.id ? { x: [0, -6, 6, -4, 4, 0], transition: { duration: 0.4 } } : {}}
-                        onClick={() => handleTap(cell)}
-                        className={`rounded-xl border-2 flex items-center justify-center transition-all duration-200 select-none ${
-                          isHinted
-                            ? "border-primary bg-primary/20 shadow-lg shadow-primary/20"
-                            : "border-border bg-card hover:bg-muted/60"
-                        }`}
-                        style={{ width: cellSize, height: cellSize }}
-                        title={isClear ? "Path is clear — tap to remove!" : "Path is blocked"}
+                      <span
+                        className={`text-2xl font-bold ${DIRECTION_COLORS[cell.direction]}`}
+                        style={{ transform: ARROW_ROTATIONS[cell.direction], display: "inline-block" }}
                       >
-                        <span
-                          className={`text-2xl font-bold ${dirColor[cell.direction]} transition-transform`}
-                          style={{ transform: ARROW_ROTATIONS[cell.direction], display: "inline-block" }}
-                        >
-                          ➤
-                        </span>
-                      </motion.button>
-                    ) : (
-                      <div style={{ width: cellSize, height: cellSize }} />
-                    )}
-                  </AnimatePresence>
+                        ➤
+                      </span>
+                    ) : null}
+                  </motion.button>
                 );
               })}
             </div>
           </div>
 
           <AnimatePresence>
-            {solved && (
-              <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="text-center space-y-2">
+            {solved ? (
+              <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="space-y-2 text-center">
                 <div className="text-5xl">🎉</div>
                 <p className="text-lg font-bold text-primary">Grid Cleared!</p>
                 <p className="text-xs text-muted-foreground">Finished with {lives}/{maxLives} lives remaining</p>
               </motion.div>
-            )}
-            {gameOver && (
-              <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="text-center space-y-2">
+            ) : null}
+
+            {gameOver ? (
+              <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="space-y-2 text-center">
                 <div className="text-5xl">💔</div>
                 <p className="text-lg font-bold text-destructive">Out of Lives!</p>
-                <p className="text-xs text-muted-foreground">{remaining} arrows remaining — try again!</p>
+                <p className="text-xs text-muted-foreground">{remaining} arrows remaining — try a fresh layout.</p>
               </motion.div>
-            )}
+            ) : null}
           </AnimatePresence>
 
           <div className="flex flex-wrap justify-center gap-2">
-            <button onClick={() => setShowHint(!showHint)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
+            <button onClick={() => setShowHint((current) => !current)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
               💡 {showHint ? "Hide Hint" : "Hint"}
             </button>
-            <button onClick={() => initLevel(levelIdx)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
+            <button onClick={restartLevel} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
               🔄 Restart
             </button>
             <button onClick={() => setLevelIdx(null)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
               ← Levels
             </button>
-            {solved && levelIdx < LEVELS.length - 1 && (
+            {solved && levelIdx < LEVELS.length - 1 ? (
               <button onClick={() => initLevel(levelIdx + 1)} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground">
                 Next Level →
               </button>
-            )}
-            {gameOver && (
-              <button onClick={() => initLevel(levelIdx)} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground">
+            ) : null}
+            {gameOver ? (
+              <button onClick={restartLevel} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground">
                 Try Again
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       )}
