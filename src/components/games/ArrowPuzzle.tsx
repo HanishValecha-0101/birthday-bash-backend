@@ -26,6 +26,11 @@ interface Level {
   seed: number;
 }
 
+interface Position {
+  row: number;
+  col: number;
+}
+
 const LEVELS: Level[] = [
   { name: "Level 1 — Gentle Start", gridSize: 3, lives: 5, seed: 42 },
   { name: "Level 2 — Warming Up", gridSize: 4, lives: 5, seed: 77 },
@@ -38,7 +43,6 @@ const LEVELS: Level[] = [
 ];
 
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
-const ARROW_ICONS: Record<Direction, string> = { up: "↑", down: "↓", left: "←", right: "→" };
 const ARROW_ROTATIONS: Record<Direction, string> = { up: "rotate(-90deg)", right: "rotate(0deg)", down: "rotate(90deg)", left: "rotate(180deg)" };
 
 function seededRandom(seed: number) {
@@ -49,25 +53,64 @@ function seededRandom(seed: number) {
   };
 }
 
-function generateGrid(size: number, seed: number): ArrowCell[] {
-  const rng = seededRandom(seed);
-  const cells: ArrowCell[] = [];
-  let id = 0;
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      cells.push({
-        id: id++,
-        direction: DIRECTIONS[Math.floor(rng() * 4)],
-        row: r,
-        col: c,
-        removed: false,
-      });
+function getClearDirections(position: Position, activePositions: Position[]): Direction[] {
+  const { row, col } = position;
+
+  return DIRECTIONS.filter((direction) => {
+    switch (direction) {
+      case "up":
+        return !activePositions.some((cell) => cell.col === col && cell.row < row);
+      case "down":
+        return !activePositions.some((cell) => cell.col === col && cell.row > row);
+      case "left":
+        return !activePositions.some((cell) => cell.row === row && cell.col < col);
+      case "right":
+        return !activePositions.some((cell) => cell.row === row && cell.col > col);
+      default:
+        return false;
     }
-  }
-  return cells;
+  });
 }
 
-function isPathClear(cell: ArrowCell, allCells: ArrowCell[], gridSize: number): boolean {
+function generateGrid(size: number, seed: number): ArrowCell[] {
+  const rng = seededRandom(seed);
+  const remainingPositions: Position[] = [];
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      remainingPositions.push({ row: r, col: c });
+    }
+  }
+
+  const generated: ArrowCell[] = [];
+
+  while (remainingPositions.length > 0) {
+    const candidates = remainingPositions
+      .map((position) => ({ position, clearDirections: getClearDirections(position, remainingPositions) }))
+      .filter((entry) => entry.clearDirections.length > 0);
+
+    const chosenCandidate = candidates[Math.floor(rng() * candidates.length)];
+    const chosenDirection = chosenCandidate.clearDirections[Math.floor(rng() * chosenCandidate.clearDirections.length)];
+
+    generated.push({
+      id: chosenCandidate.position.row * size + chosenCandidate.position.col,
+      direction: chosenDirection,
+      row: chosenCandidate.position.row,
+      col: chosenCandidate.position.col,
+      removed: false,
+    });
+
+    const removalIndex = remainingPositions.findIndex(
+      (position) => position.row === chosenCandidate.position.row && position.col === chosenCandidate.position.col,
+    );
+
+    remainingPositions.splice(removalIndex, 1);
+  }
+
+  return generated.sort((a, b) => a.row - b.row || a.col - b.col);
+}
+
+function isPathClear(cell: ArrowCell, allCells: ArrowCell[]): boolean {
   const { direction, row, col } = cell;
   const activeCells = allCells.filter((c) => !c.removed && c.id !== cell.id);
 
@@ -93,6 +136,7 @@ const ArrowPuzzle = () => {
   const [shakeId, setShakeId] = useState<number | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [boardSeed, setBoardSeed] = useState(0);
 
   const remaining = cells.filter((c) => !c.removed).length;
   const solved = remaining === 0 && levelIdx !== null && !gameOver;
@@ -102,13 +146,15 @@ const ArrowPuzzle = () => {
   const hintCellId = useMemo(() => {
     if (!showHint) return null;
     const active = cells.filter((c) => !c.removed);
-    const clearCell = active.find((c) => isPathClear(c, cells, gridSize));
+    const clearCell = active.find((c) => isPathClear(c, cells));
     return clearCell?.id ?? null;
-  }, [showHint, cells, gridSize]);
+  }, [showHint, cells]);
 
-  const initLevel = useCallback((idx: number) => {
+  const initLevel = useCallback((idx: number, seedOffset?: number) => {
     const lvl = LEVELS[idx];
-    setCells(generateGrid(lvl.gridSize, lvl.seed));
+    const nextSeed = seedOffset ?? Date.now();
+    setBoardSeed(nextSeed);
+    setCells(generateGrid(lvl.gridSize, lvl.seed + nextSeed));
     setLives(lvl.lives);
     setMaxLives(lvl.lives);
     setLevelIdx(idx);
@@ -120,7 +166,7 @@ const ArrowPuzzle = () => {
   const handleTap = (cell: ArrowCell) => {
     if (cell.removed || solved || gameOver) return;
 
-    if (isPathClear(cell, cells, gridSize)) {
+    if (isPathClear(cell, cells)) {
       setCells((prev) => prev.map((c) => (c.id === cell.id ? { ...c, removed: true } : c)));
       setShowHint(false);
     } else {
@@ -137,8 +183,8 @@ const ArrowPuzzle = () => {
   const dirColor: Record<Direction, string> = {
     up: "text-primary",
     down: "text-secondary",
-    left: "text-dracula-pink",
-    right: "text-dracula-cyan",
+    left: "text-accent",
+    right: "text-foreground",
   };
 
   return (
@@ -192,15 +238,24 @@ const ArrowPuzzle = () => {
                         initial={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0, opacity: 0, rotate: 180 }}
                         transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        animate={shakeId === cell.id ? { x: [0, -6, 6, -4, 4, 0], transition: { duration: 0.4 } } : {}}
+                        animate={
+                          cell.removed
+                            ? { scale: 0, opacity: 0, rotate: 180 }
+                            : shakeId === cell.id
+                              ? { x: [0, -6, 6, -4, 4, 0], transition: { duration: 0.4 } }
+                              : { scale: 1, opacity: 1, x: 0, rotate: 0 }
+                        }
                         onClick={() => handleTap(cell)}
                         className={`rounded-xl border-2 flex items-center justify-center transition-all duration-200 select-none ${
                           isHinted
                             ? "border-primary bg-primary/20 shadow-lg shadow-primary/20"
-                            : "border-border bg-card hover:bg-muted/60"
+                            : cell.removed
+                              ? "pointer-events-none border-border/30 bg-muted/10 opacity-0"
+                              : "border-border bg-card hover:bg-muted/60"
                         }`}
                         style={{ width: cellSize, height: cellSize }}
                         title={isClear ? "Path is clear — tap to remove!" : "Path is blocked"}
+                        disabled={cell.removed}
                       >
                         <span
                           className={`text-2xl font-bold ${dirColor[cell.direction]} transition-transform`}
@@ -209,8 +264,6 @@ const ArrowPuzzle = () => {
                           ➤
                         </span>
                       </motion.button>
-                    ) : (
-                      <div style={{ width: cellSize, height: cellSize }} />
                     )}
                   </AnimatePresence>
                 );
@@ -239,7 +292,7 @@ const ArrowPuzzle = () => {
             <button onClick={() => setShowHint(!showHint)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
               💡 {showHint ? "Hide Hint" : "Hint"}
             </button>
-            <button onClick={() => initLevel(levelIdx)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
+              <button onClick={() => initLevel(levelIdx, Date.now() + boardSeed + 1)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
               🔄 Restart
             </button>
             <button onClick={() => setLevelIdx(null)} className="rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground">
@@ -250,8 +303,8 @@ const ArrowPuzzle = () => {
                 Next Level →
               </button>
             )}
-            {gameOver && (
-              <button onClick={() => initLevel(levelIdx)} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground">
+              {gameOver && (
+               <button onClick={() => initLevel(levelIdx, Date.now() + boardSeed + 1)} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground">
                 Try Again
               </button>
             )}

@@ -24,21 +24,57 @@ import type { User } from "@supabase/supabase-js";
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const isAdmin =
-    !!user?.email && !!import.meta.env.VITE_ADMIN_EMAIL && user.email === import.meta.env.VITE_ADMIN_EMAIL;
+  const syncAdminStatus = async (nextUser: User | null) => {
+    if (!nextUser) {
+      setIsAdmin(false);
+      return;
+    }
+
+    const backend = supabase as unknown as {
+      from: (table: string) => {
+        select: (columns: string) => {
+          eq: (column: string, value: string) => {
+            eq: (column: string, value: string) => {
+              maybeSingle: () => Promise<{ data: { role: string } | null; error: unknown }>;
+            };
+          };
+        };
+      };
+    };
+
+    const { data, error } = await backend
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", nextUser.id)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (error) {
+      setIsAdmin(Boolean(nextUser.email && import.meta.env.VITE_ADMIN_EMAIL && nextUser.email === import.meta.env.VITE_ADMIN_EMAIL));
+      return;
+    }
+
+    setIsAdmin(Boolean(data));
+  };
 
   useEffect(() => {
+    const syncSession = async (nextUser: User | null) => {
+      setLoading(true);
+      setUser(nextUser);
+      await syncAdminStatus(nextUser);
+      setLoading(false);
+    };
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      void syncSession(session?.user ?? null);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      void syncSession(session?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
