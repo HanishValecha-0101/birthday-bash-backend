@@ -6,7 +6,7 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  const adminEmail = Deno.env.get("VITE_ADMIN_EMAIL") || "admin@birthday.com";
+  const adminEmail = "admin@birthday.com";
   const adminPassword = "06041996";
 
   // Check if admin already exists
