@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { useLocation, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useLocation, Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { path: "/dashboard", label: "src/dashboard", icon: "📊", file: "main.tsx" },
@@ -16,11 +17,33 @@ const navItems = [
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, loading, signOut } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth", { replace: true });
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground text-sm">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  const handleLogout = async () => {
+    await signOut();
+    window.location.href = "/";
+  };
 
   const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
     <div className={`${mobile ? "w-full" : "w-60"} bg-card border-r border-border h-full flex flex-col`}>
-      {/* Project header */}
       <div className="px-4 py-4 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="text-dublin-green text-sm font-bold">🎂 birthday-app</span>
@@ -28,12 +51,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="text-[10px] text-muted-foreground mt-1">branch: main • v26.0.0</div>
       </div>
 
-      {/* Explorer label */}
       <div className="px-4 py-2 text-[10px] text-muted-foreground uppercase tracking-wider">
         Explorer
       </div>
 
-      {/* File tree */}
       <nav className="flex-1 px-2 space-y-1">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
@@ -56,13 +77,16 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         })}
       </nav>
 
-      {/* Logout */}
+      {/* User info */}
+      <div className="px-3 py-2 border-t border-border">
+        <div className="text-[10px] text-muted-foreground truncate">
+          👤 {user.email}
+        </div>
+      </div>
+
       <div className="px-2 py-2">
         <button
-          onClick={() => {
-            sessionStorage.clear();
-            window.location.href = "/";
-          }}
+          onClick={handleLogout}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-destructive hover:bg-destructive/10 transition-colors"
         >
           <span>🚪</span>
@@ -70,7 +94,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </button>
       </div>
 
-      {/* Status bar */}
       <div className="px-4 py-3 border-t border-border text-[10px] text-muted-foreground">
         <span className="text-dublin-green">●</span> connected • Dublin → Bangalore
       </div>
@@ -79,7 +102,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Desktop sidebar */}
       <div className="hidden md:block">
         <div className="fixed top-0 left-0 h-screen">
           <Sidebar />
@@ -87,7 +109,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="w-60" />
       </div>
 
-      {/* Mobile header */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
         <span className="text-dublin-green text-sm font-bold">🎂 birthday-app</span>
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-foreground">
@@ -95,7 +116,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </button>
       </div>
 
-      {/* Mobile sidebar overlay */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
@@ -119,7 +139,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         )}
       </AnimatePresence>
 
-      {/* Main content */}
       <main className="flex-1 min-h-screen md:pt-0 pt-14">
         {children}
       </main>

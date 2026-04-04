@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Wish {
   id: string;
   name: string;
   message: string;
   emoji: string;
+  user_id: string | null;
   created_at: string | null;
 }
 
@@ -23,13 +25,14 @@ const Wishes = () => {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [videoURL, setVideoURL] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user, isAdmin } = useAuth();
 
   const fetchWishes = useCallback(async () => {
     const { data } = await supabase
       .from("wishes")
       .select("*")
       .order("created_at", { ascending: false });
-    if (data) setWishes(data);
+    if (data) setWishes(data as Wish[]);
     setLoading(false);
   }, []);
 
@@ -39,16 +42,21 @@ const Wishes = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !message.trim()) return;
+    if (!name.trim() || !message.trim() || !user) return;
 
     const { data, error } = await supabase
       .from("wishes")
-      .insert({ name: name.trim(), message: message.trim(), emoji: selectedEmoji })
+      .insert({
+        name: name.trim(),
+        message: message.trim(),
+        emoji: selectedEmoji,
+        user_id: user.id,
+      })
       .select()
       .single();
 
     if (!error && data) {
-      setWishes((prev) => [data, ...prev]);
+      setWishes((prev) => [data as Wish, ...prev]);
       setName("");
       setMessage("");
       setSubmitted(true);
@@ -56,8 +64,14 @@ const Wishes = () => {
     }
   };
 
+  const handleDeleteWish = async (wishId: string) => {
+    if (!window.confirm("Delete this wish?")) return;
+    const { error } = await supabase.from("wishes").delete().eq("id", wishId);
+    if (!error) setWishes((prev) => prev.filter((w) => w.id !== wishId));
+  };
+
   const handleClearWishes = async () => {
-    if (!window.confirm("Are you sure you want to clear all wishes? This cannot be undone.")) return;
+    if (!window.confirm("Are you sure you want to clear ALL wishes? This cannot be undone.")) return;
     const { error } = await supabase.from("wishes").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     if (!error) setWishes([]);
   };
@@ -67,19 +81,17 @@ const Wishes = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       const recorder = new MediaRecorder(stream);
       const chunks: BlobPart[] = [];
-
       recorder.ondataavailable = (e) => chunks.push(e.data);
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: "video/webm" });
         setVideoURL(URL.createObjectURL(blob));
         stream.getTracks().forEach((t) => t.stop());
       };
-
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
     } catch {
-      alert("Camera access denied. Please allow camera to record a video wish!");
+      alert("Camera access denied.");
     }
   };
 
@@ -114,12 +126,7 @@ const Wishes = () => {
         </motion.div>
 
         <div className="grid md:grid-cols-5 gap-6">
-          {/* Form */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="md:col-span-2"
-          >
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="md:col-span-2">
             <form onSubmit={handleSubmit} className="bg-card rounded-2xl border border-border p-5 space-y-4">
               <div className="px-3 py-2 bg-dracula-selection rounded-xl border-b border-border">
                 <span className="text-xs text-muted-foreground">new_wish.ts</span>
@@ -175,32 +182,20 @@ const Wishes = () => {
                 </div>
               </div>
 
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                type="submit"
-                className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold text-sm"
-              >
+              <motion.button whileTap={{ scale: 0.97 }} type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold text-sm">
                 git commit -m "birthday wish" && git push
               </motion.button>
 
               <AnimatePresence>
                 {submitted && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="text-sm text-dublin-green text-center"
-                  >
+                  <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm text-dublin-green text-center">
                     ✅ Wish deployed! He'll love it 💚
                   </motion.p>
                 )}
               </AnimatePresence>
 
-              {/* Video wish section */}
               <div className="border-t border-border pt-4 space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  🎤 Record a video wish (stays in your browser)
-                </p>
+                <p className="text-xs text-muted-foreground">🎤 Record a video wish (stays in your browser)</p>
                 {!videoURL ? (
                   <motion.button
                     type="button"
@@ -217,11 +212,7 @@ const Wishes = () => {
                 ) : (
                   <div className="space-y-2">
                     <video src={videoURL} controls className="w-full rounded-xl" />
-                    <button
-                      type="button"
-                      onClick={() => setVideoURL(null)}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                    >
+                    <button type="button" onClick={() => setVideoURL(null)} className="text-xs text-muted-foreground hover:text-foreground">
                       🗑️ Discard & record again
                     </button>
                   </div>
@@ -230,22 +221,14 @@ const Wishes = () => {
             </form>
           </motion.div>
 
-          {/* Wishes Wall */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="md:col-span-3 space-y-3"
-          >
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="md:col-span-3 space-y-3">
             <div className="flex justify-between items-center">
               <h2 className="text-sm font-bold text-foreground">
                 // wishes.log ({wishes.length} entries)
               </h2>
-              {wishes.length > 0 && (
-                <button
-                  onClick={handleClearWishes}
-                  className="text-xs text-destructive hover:text-destructive/80 transition-colors"
-                >
-                  🗑️ Clear Wishes
+              {isAdmin && wishes.length > 0 && (
+                <button onClick={handleClearWishes} className="text-xs text-destructive hover:text-destructive/80 transition-colors">
+                  🗑️ Clear All Wishes (Admin)
                 </button>
               )}
             </div>
@@ -271,14 +254,25 @@ const Wishes = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="bg-card rounded-2xl border border-border p-4 hover:border-primary/30 transition-colors"
+                    className="bg-card rounded-2xl border border-border p-4 hover:border-primary/30 transition-colors group"
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">{wish.emoji}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-bold text-dublin-green truncate">{wish.name}</span>
-                          <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(wish.created_at)}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-muted-foreground">{timeAgo(wish.created_at)}</span>
+                            {(user?.id === wish.user_id || isAdmin) && (
+                              <button
+                                onClick={() => handleDeleteWish(wish.id)}
+                                className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-all text-xs"
+                                title="Delete wish"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="text-sm text-foreground/80 mt-1 leading-relaxed">{wish.message}</p>
                       </div>

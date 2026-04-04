@@ -11,23 +11,23 @@ const games = [
   {
     id: "tiramisu" as const,
     icon: "🍰",
-    title: "Tiramisu Physics Lab",
-    description: "Stack ingredients to build the tallest birthday tiramisu tower. Watch out — physics is real!",
-    tags: ["physics", "stacking", "3 levels"],
+    title: "Tiramisu Kitchen",
+    description: "Prep ingredients, catch falling layers, and speed-decorate the perfect birthday tiramisu!",
+    tags: ["cooking", "3 rounds", "scoring"],
   },
   {
     id: "football" as const,
     icon: "⚽",
     title: "Trick Shot Football",
-    description: "Penalty shootout with obstacles. Score 3 goals to unlock Birthday Ball Mode!",
-    tags: ["skill", "swipe", "special mode"],
+    description: "Drag to aim, release to shoot — dodge walls, spinners, and wind to beat the keeper!",
+    tags: ["skill", "obstacles", "birthday mode"],
   },
   {
     id: "sing" as const,
     icon: "🎤",
-    title: "Sing To Unlock Surprise",
-    description: "Sing Happy Birthday into your mic to fill the meter and unlock a hidden surprise!",
-    tags: ["microphone", "volume", "surprise"],
+    title: "Karaoke Challenge",
+    description: "Pick a song, sing along with the lyrics, and get scored on your performance!",
+    tags: ["microphone", "5 songs", "accuracy"],
   },
 ];
 
@@ -44,19 +44,13 @@ const PlayZone = () => {
             <span className="text-foreground">()</span>
           </h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Three interactive birthday games — stack tiramisu, score trick shots, or sing to unlock a surprise!
+            Three interactive birthday games — cook tiramisu, score trick shots, or sing your heart out!
           </p>
         </motion.div>
 
         <AnimatePresence mode="wait">
           {!activeGame ? (
-            <motion.div
-              key="cards"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="grid gap-6 md:grid-cols-3"
-            >
+            <motion.div key="cards" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid gap-6 md:grid-cols-3">
               {games.map((game, i) => (
                 <motion.div
                   key={game.id}
@@ -73,9 +67,7 @@ const PlayZone = () => {
                     <p className="text-xs text-muted-foreground">{game.description}</p>
                     <div className="flex flex-wrap gap-1 justify-center">
                       {game.tags.map((tag) => (
-                        <span key={tag} className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                          {tag}
-                        </span>
+                        <span key={tag} className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">{tag}</span>
                       ))}
                     </div>
                     <button className="mt-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90">
@@ -86,16 +78,8 @@ const PlayZone = () => {
               ))}
             </motion.div>
           ) : (
-            <motion.div
-              key="game"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <button
-                onClick={() => setActiveGame(null)}
-                className="mb-4 rounded-xl border border-border bg-muted/40 px-4 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
+            <motion.div key="game" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+              <button onClick={() => setActiveGame(null)} className="mb-4 rounded-xl border border-border bg-muted/40 px-4 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
                 ← Back to Games
               </button>
               {activeGame === "tiramisu" && <TiramisuGame />}
