@@ -88,7 +88,7 @@ const Dashboard = () => {
   const [showHug, setShowHug] = useState(false);
   const [countdown, setCountdown] = useState(getCountdown);
 
-  const birthdayTarget = useMemo(() => getNextBirthday(), []);
+  const birthdayTarget = useMemo(() => getNextBirthdayUTC(), []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
