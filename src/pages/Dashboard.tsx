@@ -47,6 +47,11 @@ const ProgressRing = ({ label, value, max, color, emoji }: { label: string; valu
   );
 };
 
+const isBirthdayToday = () => {
+  const now = new Date();
+  return now.getMonth() === 3 && now.getDate() === 6;
+};
+
 const getNextBirthday = () => {
   const now = new Date();
   const target = new Date(now.getFullYear(), 3, 6, 0, 0, 0);
@@ -59,6 +64,10 @@ const getNextBirthday = () => {
 };
 
 const getCountdown = () => {
+  if (isBirthdayToday()) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, arrived: true };
+  }
+
   const target = getNextBirthday().getTime();
   const now = Date.now();
   const difference = Math.max(target - now, 0);
@@ -68,6 +77,7 @@ const getCountdown = () => {
     hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
     minutes: Math.floor((difference / (1000 * 60)) % 60),
     seconds: Math.floor((difference / 1000) % 60),
+    arrived: false,
   };
 };
 
