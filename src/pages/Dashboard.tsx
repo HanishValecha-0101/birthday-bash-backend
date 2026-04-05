@@ -47,6 +47,11 @@ const ProgressRing = ({ label, value, max, color, emoji }: { label: string; valu
   );
 };
 
+const isBirthdayToday = () => {
+  const now = new Date();
+  return now.getMonth() === 3 && now.getDate() === 6;
+};
+
 const getNextBirthday = () => {
   const now = new Date();
   const target = new Date(now.getFullYear(), 3, 6, 0, 0, 0);
@@ -59,6 +64,10 @@ const getNextBirthday = () => {
 };
 
 const getCountdown = () => {
+  if (isBirthdayToday()) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, arrived: true };
+  }
+
   const target = getNextBirthday().getTime();
   const now = Date.now();
   const difference = Math.max(target - now, 0);
@@ -68,6 +77,7 @@ const getCountdown = () => {
     hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
     minutes: Math.floor((difference / (1000 * 60)) % 60),
     seconds: Math.floor((difference / 1000) % 60),
+    arrived: false,
   };
 };
 
@@ -126,8 +136,14 @@ const Dashboard = () => {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Birthday countdown</p>
-              <h2 className="mt-2 text-2xl font-bold text-foreground">Next April 6 lands in</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Target locked for {birthdayTarget.toLocaleDateString()} — launch the day with photos, food, and games.</p>
+              <h2 className="mt-2 text-2xl font-bold text-foreground">
+                {countdown.arrived ? "🎉 The Day Has Arrived!" : "Next April 6 lands in"}
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {countdown.arrived
+                  ? "Happy Birthday! Time to celebrate with photos, food, and games! 🎂"
+                  : `Target locked for ${birthdayTarget.toLocaleDateString()} — launch the day with photos, food, and games.`}
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
@@ -141,17 +157,20 @@ const Dashboard = () => {
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[
-              { label: "Days", value: countdown.days },
-              { label: "Hours", value: countdown.hours },
-              { label: "Minutes", value: countdown.minutes },
-              { label: "Seconds", value: countdown.seconds },
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl border border-border bg-muted/35 p-4 text-center">
-                <div className="text-3xl font-bold text-foreground">{item.value}</div>
-                <div className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">{item.label}</div>
+            {countdown.arrived ? (
+              <div className="col-span-full rounded-2xl border border-primary bg-primary/10 p-6 text-center">
+                <div className="text-4xl mb-2">🎂🎉🥳</div>
+                <div className="text-lg font-bold text-foreground">It's Birthday Time!</div>
+                <div className="mt-1 text-xs text-muted-foreground">Go celebrate!</div>
               </div>
-            ))}
+            ) : (
+              [{label: "Days", value: countdown.days}, {label: "Hours", value: countdown.hours}, {label: "Minutes", value: countdown.minutes}, {label: "Seconds", value: countdown.seconds}].map((item) => (
+                <div key={item.label} className="rounded-2xl border border-border bg-muted/35 p-4 text-center">
+                  <div className="text-3xl font-bold text-foreground">{item.value}</div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">{item.label}</div>
+                </div>
+              ))
+            )}
           </div>
         </motion.section>
 
