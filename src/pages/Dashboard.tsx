@@ -47,20 +47,22 @@ const ProgressRing = ({ label, value, max, color, emoji }: { label: string; valu
   );
 };
 
-const isBirthdayToday = () => {
+const getNextBirthdayUTC = () => {
   const now = new Date();
-  return now.getMonth() === 3 && now.getDate() === 6;
-};
-
-const getNextBirthday = () => {
-  const now = new Date();
-  const target = new Date(now.getFullYear(), 3, 6, 0, 0, 0);
+  const year = now.getUTCFullYear();
+  // April 6 at 00:00 UTC
+  const target = new Date(Date.UTC(year, 3, 6, 0, 0, 0));
 
   if (target.getTime() <= now.getTime()) {
-    target.setFullYear(target.getFullYear() + 1);
+    target.setUTCFullYear(year + 1);
   }
 
   return target;
+};
+
+const isBirthdayToday = () => {
+  const now = new Date();
+  return now.getUTCMonth() === 3 && now.getUTCDate() === 6;
 };
 
 const getCountdown = () => {
@@ -68,7 +70,7 @@ const getCountdown = () => {
     return { days: 0, hours: 0, minutes: 0, seconds: 0, arrived: true };
   }
 
-  const target = getNextBirthday().getTime();
+  const target = getNextBirthdayUTC().getTime();
   const now = Date.now();
   const difference = Math.max(target - now, 0);
 
@@ -86,7 +88,7 @@ const Dashboard = () => {
   const [showHug, setShowHug] = useState(false);
   const [countdown, setCountdown] = useState(getCountdown);
 
-  const birthdayTarget = useMemo(() => getNextBirthday(), []);
+  const birthdayTarget = useMemo(() => getNextBirthdayUTC(), []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
