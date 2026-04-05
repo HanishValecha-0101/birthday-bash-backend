@@ -47,32 +47,90 @@ const ProgressRing = ({ label, value, max, color, emoji }: { label: string; valu
   );
 };
 
-const getNextBirthdayUTC = () => {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  // April 6 at 00:00 UTC
-  const target = new Date(Date.UTC(year, 3, 6, 0, 0, 0));
+const BIRTHDAY_TIME_ZONE = "Europe/Dublin";
 
-  if (target.getTime() <= now.getTime()) {
-    target.setUTCFullYear(year + 1);
-  }
+const getTimeZoneParts = (date: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(date);
 
-  return target;
+  const getPart = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+
+  return {
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hour: getPart("hour"),
+    minute: getPart("minute"),
+    second: getPart("second"),
+  };
 };
 
-const isBirthdayToday = () => {
+const getTimeZoneOffsetMs = (date: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(date);
+
+  const offsetLabel = parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT";
+  const match = offsetLabel.match(/GMT(?:(\+|-)(\d{1,2})(?::(\d{2}))?)?/);
+
+  if (!match || !match[1] || !match[2]) {
+    return 0;
+  }
+
+  const sign = match[1] === "+" ? 1 : -1;
+  const hours = Number(match[2]);
+  const minutes = Number(match[3] ?? 0);
+
+  return sign * (hours * 60 + minutes) * 60 * 1000;
+};
+
+const createDateInTimeZone = (year: number, monthIndex: number, day: number, timeZone: string) => {
+  const utcGuess = new Date(Date.UTC(year, monthIndex, day, 0, 0, 0));
+  const initialOffset = getTimeZoneOffsetMs(utcGuess, timeZone);
+  const adjustedDate = new Date(utcGuess.getTime() - initialOffset);
+  const adjustedOffset = getTimeZoneOffsetMs(adjustedDate, timeZone);
+
+  return new Date(utcGuess.getTime() - adjustedOffset);
+};
+
+const getNextBirthday = () => {
   const now = new Date();
-  return now.getUTCMonth() === 3 && now.getUTCDate() === 6;
+  const { year, month, day } = getTimeZoneParts(now, BIRTHDAY_TIME_ZONE);
+
+  if (month === 4 && day === 6) {
+    return {
+      target: createDateInTimeZone(year, 3, 6, BIRTHDAY_TIME_ZONE),
+      arrived: true,
+    };
+  }
+
+  const targetYear = month > 4 || (month === 4 && day > 6) ? year + 1 : year;
+
+  return {
+    target: createDateInTimeZone(targetYear, 3, 6, BIRTHDAY_TIME_ZONE),
+    arrived: false,
+  };
 };
 
 const getCountdown = () => {
-  if (isBirthdayToday()) {
+  const { target, arrived } = getNextBirthday();
+
+  if (arrived) {
     return { days: 0, hours: 0, minutes: 0, seconds: 0, arrived: true };
   }
 
-  const target = getNextBirthdayUTC().getTime();
-  const now = Date.now();
-  const difference = Math.max(target - now, 0);
+  const difference = Math.max(target.getTime() - Date.now(), 0);
 
   return {
     days: Math.floor(difference / (1000 * 60 * 60 * 24)),
@@ -88,7 +146,11 @@ const Dashboard = () => {
   const [showHug, setShowHug] = useState(false);
   const [countdown, setCountdown] = useState(getCountdown);
 
-  const birthdayTarget = useMemo(() => getNextBirthdayUTC(), []);
+  const birthdayTarget = useMemo(() => getNextBirthday().target, [countdown.arrived]);
+  const birthdayTargetLabel = useMemo(
+    () => birthdayTarget.toLocaleDateString("en-IE", { timeZone: BIRTHDAY_TIME_ZONE }),
+    [birthdayTarget],
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -144,7 +206,7 @@ const Dashboard = () => {
               <p className="mt-2 text-sm text-muted-foreground">
                 {countdown.arrived
                   ? "Happy Birthday! Time to celebrate with photos, food, and games! 🎂"
-                  : `Target locked for ${birthdayTarget.toLocaleDateString()} — launch the day with photos, food, and games.`}
+                  : `Target locked for ${birthdayTargetLabel} in Dublin time — launch the day with photos, food, and games.`}
               </p>
             </div>
 
